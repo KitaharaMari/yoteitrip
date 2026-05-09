@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { useTripStore } from '@/store/useTripStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { Trip } from '@/types';
-import { ShareCard } from './ShareCard';
+import { computeDayStats } from './TripOverview';
 import { createShareLink } from '@/lib/shareLink';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -99,6 +99,134 @@ async function captureAndExportPdf(el: HTMLElement, filename: string): Promise<v
   pdf.save(filename);
 }
 
+// ── TripSummaryCard — off-screen capture target ───────────────────────────────
+const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: string | null }>(
+  function TripSummaryCard({ trip, qrDataUrl }, ref) {
+    const tripCurrency = trip.currency ?? 'USD';
+    const allStats = trip.days.map((d) => computeDayStats(d, tripCurrency));
+    const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
+    const totalBudget    = allStats.reduce((s, st) => s + st.totalCost, 0);
+    const totalPlaces    = trip.days.flatMap((d) => d.activities.filter((a) => !a.isBackup && a.place?.name)).length;
+
+    const shortDate = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    };
+
+    return (
+      <div
+        ref={ref}
+        style={{
+          position: 'fixed', left: '-9999px', top: 0,
+          width: '480px', backgroundColor: '#ffffff',
+          fontFamily: "'Nunito', 'PingFang SC', sans-serif",
+        }}
+      >
+        {/* Cover / header */}
+        <div
+          style={{
+            background: trip.coverPhotoUrl
+              ? `linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)) center/cover, url("${trip.coverPhotoUrl}")`
+              : 'linear-gradient(135deg, #47BB8E, #3DAF80)',
+            padding: '32px 28px 24px',
+            color: '#fff',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logoyt.jpeg" alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
+            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em' }}>
+              <span style={{ color: '#ffffff' }}>Yotei</span>
+              <span style={{ color: '#d1fae5' }}>trip</span>
+            </span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{trip.name}</h1>
+          {trip.baseLocation && (
+            <p style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>📍 {trip.baseLocation.name}</p>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f0f0f0' }}>
+          {[
+            { icon: '📅', label: '总天数',   value: `${trip.days.length} 天` },
+            { icon: '🚗', label: '总里程',   value: totalDrivingKm > 0 ? `${totalDrivingKm.toFixed(0)} km` : '—' },
+            { icon: '📌', label: '行程地点', value: `${totalPlaces} 处` },
+            ...(totalBudget > 0 ? [{ icon: '💰', label: '预估费用', value: `${tripCurrency} ${totalBudget.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }] : []),
+          ].map(({ icon, label, value }) => (
+            <div key={label} style={{ flex: 1, padding: '14px 10px', textAlign: 'center', borderRight: '1px solid #f0f0f0' }}>
+              <div style={{ fontSize: 16 }}>{icon}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1f2937', marginTop: 2 }}>{value}</div>
+              <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Per-day list */}
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {trip.days.map((day, i) => {
+            const st = allStats[i];
+            return (
+              <div key={day.id} style={{ borderRadius: 12, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#f9fafb' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{day.label}</span>
+                    {day.date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{shortDate(day.date)}</span>}
+                  </div>
+                  {st.totalCost > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3D5568', fontVariantNumeric: 'tabular-nums' }}>
+                      {st.currency} {st.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: '8px 14px 10px' }}>
+                  {day.originPlace && (
+                    <p style={{ fontSize: 11, color: '#47BB8E', margin: '0 0 4px' }}>📍 {day.originPlace.name}</p>
+                  )}
+                  {st.places.length > 0 && (
+                    <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 4px', lineHeight: 1.5 }}>
+                      {st.places.join(' · ')}
+                    </p>
+                  )}
+                  {(st.drivingKm >= 50 || st.transitCost > 0) && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 6, paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
+                      {st.drivingKm >= 50 && (
+                        <span style={{ fontSize: 10, color: '#9ca3af' }}>
+                          🚗 {st.drivingKm.toFixed(0)} km{st.fuelCost > 0 ? ` · ${st.currency} ${st.fuelCost.toFixed(0)}` : ''}
+                        </span>
+                      )}
+                      {st.transitCost > 0 && (
+                        <span style={{ fontSize: 10, color: '#9ca3af' }}>
+                          🚌 {st.currency} {st.transitCost.toFixed(0)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer with QR */}
+        <div style={{ padding: '16px 20px 24px', borderTop: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>由 YoteiTrip 生成</p>
+            <p style={{ fontSize: 10, color: '#d1d5db', margin: '2px 0 0' }}>yoteitrip.vercel.app</p>
+          </div>
+          {qrDataUrl && (
+            <div style={{ textAlign: 'center' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="QR" style={{ width: 60, height: 60, borderRadius: 4 }} />
+              <p style={{ fontSize: 9, color: '#9ca3af', margin: '3px 0 0' }}>扫码导入</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
 // ── ExportModal ───────────────────────────────────────────────────────────────
 export function ExportModal({ onClose }: Props) {
   const trip     = useTripStore((s) => s.trip);
@@ -116,7 +244,7 @@ export function ExportModal({ onClose }: Props) {
   const [qrDataUrl, setQrDataUrl]   = useState<string | null>(null);
   const [qrLoading, setQrLoading]   = useState(false);
   const [capturing, setCapturing]   = useState(false);
-  const shareCardRef = useRef<HTMLDivElement>(null);
+  const summaryCardRef = useRef<HTMLDivElement>(null);
 
   const encoded = useMemo(() => encode(trip), [trip]);
 
@@ -147,20 +275,20 @@ export function ExportModal({ onClose }: Props) {
   };
 
   const handleDownloadImage = async () => {
-    if (!shareCardRef.current || capturing) return;
+    if (!summaryCardRef.current || capturing) return;
     setCapturing(true);
     try {
-      await captureAndDownload(shareCardRef.current, `${trip.name}-分享图.png`);
+      await captureAndDownload(summaryCardRef.current, `${trip.name}-分享图.png`);
     } finally {
       setCapturing(false);
     }
   };
 
   const handleDownloadPdf = async () => {
-    if (!shareCardRef.current || capturing) return;
+    if (!summaryCardRef.current || capturing) return;
     setCapturing(true);
     try {
-      await captureAndExportPdf(shareCardRef.current, `${trip.name}-路书.pdf`);
+      await captureAndExportPdf(summaryCardRef.current, `${trip.name}-路书.pdf`);
     } finally {
       setCapturing(false);
     }
@@ -197,8 +325,8 @@ export function ExportModal({ onClose }: Props) {
 
   return (
     <>
-      {/* ── Off-screen ShareCard (always rendered so ref is valid) ── */}
-      <ShareCard ref={shareCardRef} trip={trip} qrDataUrl={qrDataUrl} />
+      {/* ── Off-screen capture target ── */}
+      <TripSummaryCard ref={summaryCardRef} trip={trip} qrDataUrl={qrDataUrl} />
 
       {/* ── Modal sheet ── */}
       <div

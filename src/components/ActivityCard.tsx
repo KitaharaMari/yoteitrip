@@ -13,7 +13,6 @@ interface Props {
   dayId: string;
   onEdit: () => void;       // opens SearchOverlay
   isFirst?: boolean;
-  isPreview?: boolean;
   dragHandleListeners?: DraggableSyntheticListeners;
   backupCount?: number;
   isBackupOpen?: boolean;
@@ -49,7 +48,7 @@ function ForkIcon() {
 }
 
 export function ActivityCard({
-  activity, dayId, onEdit, isFirst, isPreview,
+  activity, dayId, onEdit, isFirst,
   dragHandleListeners, backupCount, isBackupOpen, onToggleBackup,
 }: Props) {
   const updateActivity = useTripStore((s) => s.updateActivity);
@@ -65,12 +64,12 @@ export function ActivityCard({
 
   const isRegularPlace = activity.type === 'STAY' || activity.type === 'MEAL' || activity.type === 'ACCOMMODATION';
 
-  const showTimeInput      = !isPreview && (isFirst || activity.type === 'TRANSPORT' || isLongDistance);
-  const showDurationPicker = !isPreview && (isRegularPlace || isLongDistance);
-  const showBudget         = !isPreview && (activity.type === 'STAY' || activity.type === 'MEAL');
-  const showFork           = !isPreview && !!onToggleBackup;
-  const showDescription    = !isPreview || !!activity.description;
-  const showTypeSwitcher   = !isPreview && isRegularPlace;
+  const showTimeInput      = isFirst || activity.type === 'TRANSPORT' || isLongDistance;
+  const showDurationPicker = isRegularPlace || isLongDistance;
+  const showBudget         = activity.type === 'STAY' || activity.type === 'MEAL';
+  const showFork           = !!onToggleBackup;
+  const showDescription    = true;
+  const showTypeSwitcher   = isRegularPlace;
   const showPlaceInfo      = isRegularPlace && !!activity.place &&
     (!!activity.place.editorialSummary || activity.place.rating != null);
 
@@ -125,33 +124,20 @@ export function ActivityCard({
         </span>
 
         {/* ── Place name: clicking opens SearchOverlay ── */}
-        {isPreview ? (
-          <div className="flex-1 min-w-0">
-            <p className={`text-sm truncate leading-tight ${
-              activity.place?.name ? (isLongDistance ? 'text-blue-800' : 'text-gray-800') : 'text-gray-300'
-            }`}>
-              {activity.place?.name ?? '未设置地点'}
+        <button onClick={onEdit} className="flex-1 min-w-0 text-left">
+          <p className={`text-sm truncate leading-tight ${
+            activity.place?.name
+              ? (isLongDistance ? 'text-blue-800' : 'text-gray-800')
+              : 'text-gray-300'
+          }`}>
+            {activity.place?.name ?? '点击搜索地点…'}
+          </p>
+          {activity.place?.address && (
+            <p className="text-[10px] text-gray-400 truncate mt-0.5 leading-none">
+              {activity.place.address}
             </p>
-            {activity.place?.address && (
-              <p className="text-[10px] text-gray-400 truncate mt-0.5">{activity.place.address}</p>
-            )}
-          </div>
-        ) : (
-          <button onClick={onEdit} className="flex-1 min-w-0 text-left">
-            <p className={`text-sm truncate leading-tight ${
-              activity.place?.name
-                ? (isLongDistance ? 'text-blue-800' : 'text-gray-800')
-                : 'text-gray-300'
-            }`}>
-              {activity.place?.name ?? '点击搜索地点…'}
-            </p>
-            {activity.place?.address && (
-              <p className="text-[10px] text-gray-400 truncate mt-0.5 leading-none">
-                {activity.place.address}
-              </p>
-            )}
-          </button>
-        )}
+          )}
+        </button>
 
         {showBudget && (
           <div className="flex items-center gap-0.5 flex-none">
@@ -167,11 +153,7 @@ export function ActivityCard({
             />
           </div>
         )}
-        {isPreview && activity.estimatedCost != null && (
-          <span className="text-xs text-gray-400 flex-none tabular-nums">
-            {currency} {activity.estimatedCost}
-          </span>
-        )}
+
 
         {showDurationPicker ? (
           <DurationPicker
@@ -182,15 +164,13 @@ export function ActivityCard({
           <span className="text-xs text-gray-400 flex-none">{fmt(activity.duration)}</span>
         )}
 
-        {!isPreview && (
-          <button
-            onClick={() => deleteActivity(dayId, activity.id)}
-            aria-label="删除"
-            className="flex-none text-gray-200 hover:text-red-400 transition-colors text-xl leading-none"
-          >
-            ×
-          </button>
-        )}
+        <button
+          onClick={() => deleteActivity(dayId, activity.id)}
+          aria-label="删除"
+          className="flex-none text-gray-200 hover:text-red-400 transition-colors text-xl leading-none"
+        >
+          ×
+        </button>
       </div>
 
       {/* ── Place info: rating + editorial summary + Google Maps link ── */}
@@ -270,19 +250,13 @@ export function ActivityCard({
           {/* spacers matching time + icon widths above */}
           <div className="w-10 flex-none" />
           <div className="w-5 flex-none" />
-          {isPreview ? (
-            activity.description && (
-              <p className="text-xs text-gray-500 flex-1">{activity.description}</p>
-            )
-          ) : (
-            <input
-              type="text"
-              placeholder="添加备注…"
-              value={activity.description ?? ''}
-              onChange={(e) => updateActivity(dayId, activity.id, { description: e.target.value })}
-              className="flex-1 text-xs text-gray-400 bg-transparent outline-none placeholder-gray-200 min-w-0"
-            />
-          )}
+          <input
+            type="text"
+            placeholder="添加备注…"
+            value={activity.description ?? ''}
+            onChange={(e) => updateActivity(dayId, activity.id, { description: e.target.value })}
+            className="flex-1 text-xs text-gray-400 bg-transparent outline-none placeholder-gray-200 min-w-0"
+          />
         </div>
       )}
 

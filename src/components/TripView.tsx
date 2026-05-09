@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTripStore } from '@/store/useTripStore';
 import { DayScroller } from './DayScroller';
 import { ActivityList } from './ActivityList';
+import { TripOverview } from './TripOverview';
 import { ExportModal } from './ExportModal';
 import { WishlistDrawer } from './WishlistDrawer';
 
@@ -14,14 +15,13 @@ export function TripView() {
   const updateDay = useTripStore((s) => s.updateDay);
 
   const [activeDayId, setActiveDayId]   = useState<string | null>(null);
-  const [isPreview, setIsPreview]       = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
   const [showExport, setShowExport]     = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
 
   const activeDay = trip.days.find((d) => d.id === activeDayId) ?? trip.days[0] ?? null;
 
   // Keep each day's origin in sync with the previous day's last accommodation.
-  // Runs whenever the active day changes OR whenever the previous day's activities change.
   const prevDayIndex = trip.days.findIndex((d) => d.id === activeDay?.id) - 1;
   const prevDayLastAccomPlaceId = trip.days[prevDayIndex]
     ?.activities.filter((a) => !a.isBackup && a.type === 'ACCOMMODATION').at(-1)?.place?.placeId;
@@ -49,11 +49,16 @@ export function TripView() {
   const handleAddDay = () => {
     addDay();
     const newDay = useTripStore.getState().trip.days.at(-1);
-    if (newDay) setActiveDayId(newDay.id);
+    if (newDay) { setActiveDayId(newDay.id); setShowOverview(false); }
+  };
+
+  const handleSelectDay = (id: string) => {
+    setActiveDayId(id);
+    setShowOverview(false);
   };
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors ${isPreview ? 'bg-white' : 'bg-gray-50'}`}>
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <div className="w-full max-w-[480px] mx-auto flex-1 flex flex-col">
 
         {/* Header */}
@@ -70,17 +75,6 @@ export function TripView() {
           </div>
           <div className="flex items-center gap-1 pt-1">
             <button
-              onClick={() => setIsPreview((v) => !v)}
-              title={isPreview ? '切换编辑模式' : '切换预览模式'}
-              className={`w-9 h-9 rounded-full flex items-center justify-center text-base transition-colors ${
-                isPreview
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-400'
-              }`}
-            >
-              {isPreview ? '✏️' : '👁️'}
-            </button>
-            <button
               onClick={() => setShowExport(true)}
               title="数据 & 分享"
               className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
@@ -93,15 +87,15 @@ export function TripView() {
         <DayScroller
           days={trip.days}
           activeDayId={activeDay?.id ?? null}
-          onSelect={setActiveDayId}
+          onSelect={handleSelectDay}
           onAddDay={handleAddDay}
-          isPreview={isPreview}
+          showOverview={showOverview}
+          onSelectOverview={() => setShowOverview(true)}
         />
 
-        {/* Date + day travel mode row */}
-        {activeDay && !isPreview && (
+        {/* Date + travel mode row — only in day view */}
+        {!showOverview && activeDay && (
           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-white/60">
-            {/* Travel mode toggle — moved to LEFT so native date-picker icon isn't covered */}
             <div className="flex items-center gap-0.5 flex-none bg-gray-100 rounded-full p-0.5">
               {(['TRANSIT', 'DRIVING'] as const).map((m) => (
                 <button
@@ -136,11 +130,12 @@ export function TripView() {
           </div>
         )}
 
-        {activeDay ? (
+        {showOverview ? (
+          <TripOverview trip={trip} />
+        ) : activeDay ? (
           <ActivityList
             dayId={activeDay.id}
             activities={activeDay.activities}
-            isPreview={isPreview}
             originPlace={activeDay.originPlace}
             originTime={activeDay.originTime}
             onOpenWishlist={() => setShowWishlist(true)}

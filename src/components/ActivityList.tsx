@@ -23,7 +23,6 @@ import { DayWeatherBar } from './DayWeatherBar';
 interface Props {
   dayId: string;
   activities: Activity[];
-  isPreview: boolean;
   originPlace?: PlaceDetails;
   originTime?: string;
   onOpenWishlist?: () => void;
@@ -37,7 +36,7 @@ const CATEGORY_TO_TYPE: Record<WishlistCategory, ActivityType> = {
   BACKUP:     'STAY',
 };
 
-export function ActivityList({ dayId, activities, isPreview, originPlace, originTime, onOpenWishlist }: Props) {
+export function ActivityList({ dayId, activities, originPlace, originTime, onOpenWishlist }: Props) {
   const addActivity       = useTripStore((s) => s.addActivity);
   const insertActivity    = useTripStore((s) => s.insertActivity);
   const updateActivity    = useTripStore((s) => s.updateActivity);
@@ -135,7 +134,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
 
   return (
     <>
-      {(editingId || editingOrigin) && !isPreview && (
+      {(editingId || editingOrigin) && (
         <SearchOverlay
           onSelect={handlePlaceSelect}
           onClose={handleCloseSearch}
@@ -150,13 +149,12 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
           <DayOriginCard
             originPlace={originPlace}
             originTime={originTime}
-            isPreview={isPreview}
             onEditPlace={() => setEditingOrigin(true)}
             onUpdateTime={(t) => updateDay(dayId, { originTime: t })}
           />
 
           {/* ── Weather bar — only when date + origin coords are known ── */}
-          {!isPreview && dayDate && originPlace?.lat != null && (
+          {dayDate && originPlace?.lat != null && (
             <DayWeatherBar
               date={dayDate}
               originPlace={originPlace}
@@ -210,7 +208,6 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                               dayId={dayId}
                               onEdit={() => setEditingId(activity.id)}
                               isFirst={index === 0}
-                              isPreview={isPreview}
                               backupCount={backups.length}
                               isBackupOpen={isSlotOpen}
                               onToggleBackup={() =>
@@ -220,7 +217,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                           </motion.div>
 
                           {/* Quick-pick chips for unset accommodation cards */}
-                          {!isPreview && activity.type === 'ACCOMMODATION' && !activity.place && (
+                          {activity.type === 'ACCOMMODATION' && !activity.place && (
                             <AccommodationQuickPick
                               originPlace={originPlace}
                               otherAccomPlaces={primaryActivities
@@ -241,8 +238,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                             onSetPreferred={handleSetPreferred}
                           />
 
-                          {!isPreview && (
-                            <ProximityBubbles
+                          <ProximityBubbles
                               activity={activity}
                               wishlist={wishlist}
                               onInsert={(item) =>
@@ -254,7 +250,6 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                                 )
                               }
                             />
-                          )}
                         </div>
                       );
                     })
@@ -307,8 +302,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
         />
 
         {/* Add-module section */}
-        {!isPreview && (
-          <div className="px-4 pt-5 pb-8 flex flex-col gap-3">
+        <div className="px-4 pt-5 pb-8 flex flex-col gap-3">
             <p className="text-[11px] uppercase tracking-widest text-gray-400">添加模块</p>
 
             <div className="grid grid-cols-3 gap-2">
@@ -349,8 +343,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                 <span className="ml-auto text-gray-300 text-sm">›</span>
               </button>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </>
   );
