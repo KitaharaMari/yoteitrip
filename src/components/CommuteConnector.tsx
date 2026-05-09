@@ -126,9 +126,13 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
   // ── Save transit fare to store so ActivityList can include it in budget ─
   useEffect(() => {
     const fare = parseFare(route?.fareText);
-    if (nextActivity.transitFare === fare) return;
-    updateActivity(dayId, nextActivity.id, { transitFare: fare });
-  }, [route?.fareText, dayId, nextActivity.id, nextActivity.transitFare, updateActivity]);
+    // Extract currency label: everything before the first digit (e.g. "¥", "JPY ", "$")
+    const fareCurrency = route?.fareText
+      ? (route.fareText.match(/^[^\d]+/)?.[0].trim() || undefined)
+      : undefined;
+    if (nextActivity.transitFare === fare && nextActivity.transitFareCurrency === fareCurrency) return;
+    updateActivity(dayId, nextActivity.id, { transitFare: fare, transitFareCurrency: fareCurrency });
+  }, [route?.fareText, dayId, nextActivity.id, nextActivity.transitFare, nextActivity.transitFareCurrency, updateActivity]);
 
   // ── Persist driving distance + polyline for daily fuel stats & static map ─
   useEffect(() => {

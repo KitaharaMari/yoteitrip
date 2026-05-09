@@ -120,6 +120,11 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
     .filter((a) => a.transitFare != null)
     .reduce((sum, a) => sum + (a.transitFare ?? 0), 0);
 
+  // Use the fare's own currency label (e.g. "¥", "JPY") rather than trip.currency so the
+  // summary matches what each connector displays. Falls back to trip.currency only when absent.
+  const transitCurrencyLabel =
+    primaryActivities.find((a) => a.transitFareCurrency)?.transitFareCurrency ?? currency;
+
   const hasBudget = activityCost > 0 || transitCost > 0;
 
   // Driving distance — summed from all activities' persisted commuteDrivingMeters.
@@ -274,7 +279,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
               <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <span className="text-xs text-gray-500">🚌 公共交通票价</span>
                 <span className="tabular-nums text-gray-700">
-                  {currency} {transitCost.toLocaleString()}
+                  {transitCurrencyLabel} {transitCost.toLocaleString()}
                 </span>
               </div>
             )}
@@ -286,7 +291,7 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
                 {activityCost > 0 && transitCost > 0 ? '当日合计' : '当天预估费用'}
               </span>
               <span className="font-semibold text-gray-900 tabular-nums">
-                {currency} {(activityCost + transitCost).toLocaleString()}
+                {activityCost > 0 ? currency : transitCurrencyLabel} {(activityCost + transitCost).toLocaleString()}
               </span>
             </div>
           </div>

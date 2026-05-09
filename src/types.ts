@@ -50,7 +50,8 @@ export interface Activity {
   startTime: string;       // "HH:mm"
   duration: number;        // minutes
   description?: string;    // optional user note shown below the place name
-  transitFare?: number;    // fare (in trip.currency) auto-filled from Directions API
+  transitFare?: number;          // fare amount auto-filled from Directions API
+  transitFareCurrency?: string;  // currency label (e.g. "¥", "JPY") from Directions API fare text
   commuteDrivingMeters?: number; // meters driven for the commute TO this activity (DRIVING mode only)
   commutePolyline?: string;     // encoded polyline for the route TO this activity (for static map)
   notes?: string;
