@@ -123,9 +123,12 @@ export function OriginConnector({ originPlace, originTime, firstActivity, dayId 
 
   useEffect(() => {
     const fare = parseFare(route?.fareText);
-    if (firstActivity.transitFare === fare) return;
-    updateActivity(dayId, firstActivity.id, { transitFare: fare });
-  }, [route?.fareText, dayId, firstActivity.id, firstActivity.transitFare, updateActivity]);
+    const fareCurrency = route?.fareText
+      ? (route.fareText.match(/^[^\d]+/)?.[0].trim() || undefined)
+      : undefined;
+    if (firstActivity.transitFare === fare && firstActivity.transitFareCurrency === fareCurrency) return;
+    updateActivity(dayId, firstActivity.id, { transitFare: fare, transitFareCurrency: fareCurrency });
+  }, [route?.fareText, dayId, firstActivity.id, firstActivity.transitFare, firstActivity.transitFareCurrency, updateActivity]);
 
   useEffect(() => {
     if (firstActivity.isManualTime) return;
