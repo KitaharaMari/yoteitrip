@@ -501,6 +501,127 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
   );
 }
 
+// ── OnboardingModal ───────────────────────────────────────────────────────────
+const ONBOARDING_SLIDES = [
+  {
+    icon: '🧩',
+    title: '积木式行程规划',
+    desc: '景点、餐饮、住宿、交通——四类模块自由拼搭，日程结构一目了然，想改随时改。',
+  },
+  {
+    icon: '⏱️',
+    title: '实时通勤推算',
+    desc: '基于 Google Maps，自动计算相邻地点的路程时间，告别「看起来可行」的假日程。',
+  },
+  {
+    icon: '🌤️',
+    title: '当日天气 & 穿搭建议',
+    desc: '确定出发日期后即可查看目的地天气预报，并自动推荐适合的穿搭层次。',
+  },
+  {
+    icon: '☁️',
+    title: '云端同步 & 一键分享',
+    desc: '登录账号后行程自动云端备份，随时生成分享链接，和朋友一起规划。',
+  },
+];
+
+function OnboardingModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const isLast = step === ONBOARDING_SLIDES.length - 1;
+  const slide  = ONBOARDING_SLIDES[step];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-6 bg-black/40"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="w-full sm:max-w-sm bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Progress bar */}
+        <div className="h-1 bg-gray-100">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ backgroundColor: '#47BB8E' }}
+            animate={{ width: `${((step + 1) / ONBOARDING_SLIDES.length) * 100}%` }}
+            transition={{ type: 'spring', damping: 20 }}
+          />
+        </div>
+
+        <div className="p-6 flex flex-col gap-5">
+          {/* Logo + skip */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logoyt.jpeg" alt="" className="h-7 w-7 rounded-lg object-cover flex-none" />
+              <span className="text-xs font-bold tracking-wide select-none">
+                <span style={{ color: '#3D5568' }}>Yotei</span>
+                <span style={{ color: '#47BB8E' }}>trip</span>
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-xs text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              跳过
+            </button>
+          </div>
+
+          {/* Slide content */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 28 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -28 }}
+              transition={{ duration: 0.18 }}
+              className="flex flex-col items-center gap-4 py-3 text-center"
+            >
+              <span className="text-5xl leading-none select-none">{slide.icon}</span>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-lg font-bold text-gray-900">{slide.title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{slide.desc}</p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Dot indicators */}
+          <div className="flex items-center justify-center gap-1.5">
+            {ONBOARDING_SLIDES.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setStep(i)}
+                className="rounded-full transition-all"
+                style={{
+                  height: '6px',
+                  width: i === step ? '20px' : '6px',
+                  backgroundColor: i === step ? '#47BB8E' : '#E5E7EB',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={() => { if (isLast) onClose(); else setStep((s) => s + 1); }}
+            className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 active:scale-[0.98] transition-all"
+          >
+            {isLast ? '开始规划 →' : '下一步'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ── DeleteConfirmModal ────────────────────────────────────────────────────────
 function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
   trip: Trip;
@@ -558,6 +679,18 @@ export function TripDashboard() {
   const [coverPickerTrip, setCoverPickerTrip]   = useState<Trip | null>(null);
   const [showWishlist, setShowWishlist]         = useState(false);
   const [showAuthModal, setShowAuthModal]       = useState(false);
+  const [showOnboarding, setShowOnboarding]     = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('yoteitrip-onboarded')) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleOnboardingClose = () => {
+    localStorage.setItem('yoteitrip-onboarded', '1');
+    setShowOnboarding(false);
+  };
 
   const handleDelete = (trip: Trip) => setDeletingTrip(trip);
   const confirmDelete = () => {
@@ -656,6 +789,11 @@ export function TripDashboard() {
       </div>
 
       {/* ── Modals ── */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingModal key="onboarding" onClose={handleOnboardingClose} />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showAuthModal && (
           <AuthModal key="auth" onClose={() => setShowAuthModal(false)} />
