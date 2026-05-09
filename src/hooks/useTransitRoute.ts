@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { PlaceDetails } from '@/types';
 
-export type TravelMode = 'TRANSIT' | 'DRIVING';
+export type TravelMode = 'TRANSIT' | 'DRIVING' | 'WALKING';
 
 export interface TransitStep {
   mode: 'WALKING' | 'TRANSIT';
@@ -225,6 +225,34 @@ export function useTransitRoute(
     let cancelled = false;
 
     const run = async () => {
+      // ── WALKING: SDK only, no server proxy, no departure time ──────────────
+      if (mode === 'WALKING') {
+        if (!mapsLoaded || typeof google === 'undefined' || !google.maps?.DirectionsService) return;
+        const service     = new google.maps.DirectionsService();
+        const origin      = fromId ? { placeId: fromId } : { lat: fromLat!, lng: fromLng! };
+        const destination = toId   ? { placeId: toId }   : { lat: toLat!,   lng: toLng!   };
+        service.route(
+          { origin, destination, travelMode: google.maps.TravelMode.WALKING },
+          (response, status) => {
+            if (cancelled) return;
+            if (status !== google.maps.DirectionsStatus.OK || !response?.routes[0]?.legs[0]) return;
+            const leg      = response.routes[0].legs[0];
+            const totalMin = Math.ceil((leg.duration?.value ?? 0) / 60);
+            const mapsUrl  = fromId && toId
+              ? `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${toLat},${toLng}&origin_place_id=${fromId}&destination_place_id=${toId}&travelmode=walking`
+              : `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${toLat},${toLng}&travelmode=walking`;
+            const r: RouteResult = {
+              totalMinutes: totalMin, totalText: leg.duration?.text ?? `${totalMin}分钟`,
+              steps: buildStepsFromSDK(leg), totalMeters: leg.distance?.value,
+              mapsUrl, usedMode: 'WALKING',
+            };
+            if (cacheKey) cache.set(cacheKey, r);
+            setResult(r);
+          },
+        );
+        return;
+      }
+
       // ── TRANSIT: try server-side proxy first ───────────────────────────────
       if (mode === 'TRANSIT') {
         // Build best origin/destination string for the REST API

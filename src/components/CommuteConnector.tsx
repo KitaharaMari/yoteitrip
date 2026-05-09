@@ -6,6 +6,7 @@ import { useTripStore } from '@/store/useTripStore';
 import { useTransitRoute, parseFare, type TravelMode, type TransitStep } from '@/hooks/useTransitRoute';
 import { useMapsLoaded } from '@/components/MapProvider';
 import { buildDepartureDate } from '@/lib/departureTime';
+import { haversineKm } from '@/lib/haversine';
 
 interface Props {
   prevActivity: Activity;
@@ -123,16 +124,38 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
 
   const route = useTransitRoute(prevActivity.place, nextActivity.place, mode, mapsLoaded, departureTime);
 
-  // ── Save transit fare to store so ActivityList can include it in budget ─
+  // ── Walking route (always computed when places are close enough) ───────────
+  const straightLineKm = (
+    prevActivity.place?.lat != null && prevActivity.place?.lng != null &&
+    nextActivity.place?.lat  != null && nextActivity.place?.lng  != null
+  ) ? haversineKm(
+    prevActivity.place.lat, prevActivity.place.lng,
+    nextActivity.place.lat, nextActivity.place.lng,
+  ) : Infinity;
+
+  const walkingRoute = useTransitRoute(
+    prevActivity.place,
+    nextActivity.place,
+    'WALKING',
+    mapsLoaded && straightLineKm < 5,  // only fetch when within 5 km straight-line
+  );
+
+  // Show walking option when: < 60 min, OR within 15 min of the main route
+  const walkingMin  = walkingRoute?.totalMinutes ?? Infinity;
+  const mainMin     = route?.totalMinutes ?? Infinity;
+  const showWalking = walkingRoute !== null && (
+    walkingMin < 60 || Math.abs(walkingMin - mainMin) <= 15
+  );
+
+  // ── Save transit fare (walking has no fare) ───────────────────────────────
   useEffect(() => {
-    const fare = parseFare(route?.fareText);
-    // Extract currency label: everything before the first digit (e.g. "¥", "JPY ", "$")
-    const fareCurrency = route?.fareText
+    const fare = mode === 'WALKING' ? undefined : parseFare(route?.fareText);
+    const fareCurrency = (mode !== 'WALKING' && route?.fareText)
       ? (route.fareText.match(/^[^\d]+/)?.[0].trim() || undefined)
       : undefined;
     if (nextActivity.transitFare === fare && nextActivity.transitFareCurrency === fareCurrency) return;
     updateActivity(dayId, nextActivity.id, { transitFare: fare, transitFareCurrency: fareCurrency });
-  }, [route?.fareText, dayId, nextActivity.id, nextActivity.transitFare, nextActivity.transitFareCurrency, updateActivity]);
+  }, [mode, route?.fareText, dayId, nextActivity.id, nextActivity.transitFare, nextActivity.transitFareCurrency, updateActivity]);
 
   // ── Persist driving distance + polyline for daily fuel stats & static map ─
   useEffect(() => {
@@ -164,13 +187,17 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
   const hasPlaces = !!(prevActivity.place?.lat && nextActivity.place?.lat);
   const hasRoute  = !!route;
   const hasSteps  = (route?.steps?.length ?? 0) > 0;
-  // What the route actually used (may differ from `mode` when transit falls back to driving)
   const displayMode = route?.usedMode ?? mode;
-  // Transit was requested but the hook could only return a driving route
   const transitNoData = mode === 'TRANSIT' && hasRoute && displayMode === 'DRIVING';
 
+  // Available modes: always TRANSIT + DRIVING, plus WALKING when applicable
+  const availableModes: TravelMode[] = showWalking
+    ? ['TRANSIT', 'DRIVING', 'WALKING']
+    : ['TRANSIT', 'DRIVING'];
+
   const handleModeToggle = () => {
-    setMode(prev => prev === 'TRANSIT' ? 'DRIVING' : 'TRANSIT');
+    const idx = availableModes.indexOf(mode);
+    setMode(availableModes[(idx + 1) % availableModes.length]);
     setExpanded(false);
   };
 
@@ -186,22 +213,34 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
           <div className="w-px h-5 border-l border-dashed border-gray-200" />
         </div>
 
-        {/* Mode toggle */}
+        {/* Mode selector — shows all available modes; extra walking button appears when applicable */}
         {hasPlaces && (
-          <button
-            onClick={handleModeToggle}
-            title={
-              transitNoData
-                ? '此路段无公交数据 · 点击切换驾车'
-                : displayMode === 'TRANSIT' ? '切换为驾车' : '切换为公交'
-            }
-            className="text-[11px] transition-colors flex-none text-gray-300 hover:text-gray-600"
-          >
-            {displayMode === 'TRANSIT' ? '🚌' : '🚗'}
-            {transitNoData && (
-              <span className="text-[8px] text-gray-400 ml-0.5">无公交</span>
+          <div className="flex items-center gap-0.5 flex-none">
+            {(['TRANSIT', 'DRIVING'] as TravelMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setExpanded(false); }}
+                title={m === 'TRANSIT' ? (transitNoData ? '无公交数据 · 已显示驾车' : '公交') : '驾车'}
+                className={`text-[11px] px-0.5 rounded transition-colors leading-none ${
+                  mode === m ? 'opacity-100' : 'opacity-30 hover:opacity-60'
+                }`}
+              >
+                {m === 'TRANSIT' ? '🚌' : '🚗'}
+              </button>
+            ))}
+            {showWalking && (
+              <button
+                onClick={() => { setMode('WALKING'); setExpanded(false); }}
+                title={`步行约 ${walkingRoute!.totalText}`}
+                className={`flex items-center gap-0.5 text-[10px] px-0.5 rounded transition-colors leading-none ${
+                  mode === 'WALKING' ? 'opacity-100' : 'opacity-30 hover:opacity-60'
+                }`}
+              >
+                <span className="text-[11px]">🚶</span>
+                <span className="text-gray-500 tabular-nums">{walkingRoute!.totalText}</span>
+              </button>
             )}
-          </button>
+          </div>
         )}
 
         {/* Commute summary — station info + time (time is flex-none, never truncated) */}
