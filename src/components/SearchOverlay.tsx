@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMapsLoaded } from './MapProvider';
 import type { PlaceDetails } from '@/types';
 
+
 export interface SearchAnchor {
   lat: number;
   lng: number;
@@ -69,40 +70,69 @@ export function SearchOverlay({ onSelect, onClose, searchAnchor }: Props) {
     const listener = ac.addListener('place_changed', () => {
       const place = ac.getPlace();
       if (!place.place_id) return;
-      const photoUrl  = place.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 });
-      const editorial = (place as google.maps.places.PlaceResult & {
+
+      type PlaceWithEditorial = google.maps.places.PlaceResult & {
         editorial_summary?: { overview?: string };
-      }).editorial_summary?.overview;
+      };
 
-      // Extract opening hours periods for timezone-aware status checks
-      const rawPeriods = place.opening_hours?.periods;
-      const openingHours = rawPeriods?.length
-        ? {
-            periods: rawPeriods
-              .filter((p) => p.open)
-              .map((p) => ({
-                open:  { day: p.open.day  ?? 0, time: p.open.time  ?? '0000' },
-                close: p.close
-                  ? { day: p.close.day ?? 0, time: p.close.time ?? '0000' }
-                  : undefined,
-              })),
+      const buildDetails = (
+        p: PlaceWithEditorial,
+        overrides?: Partial<PlaceDetails>,
+      ): PlaceDetails => {
+        const rawPeriods = p.opening_hours?.periods;
+        const openingHours = rawPeriods?.length
+          ? {
+              periods: rawPeriods
+                .filter((pr) => pr.open)
+                .map((pr) => ({
+                  open:  { day: pr.open.day  ?? 0, time: pr.open.time  ?? '0000' },
+                  close: pr.close
+                    ? { day: pr.close.day ?? 0, time: pr.close.time ?? '0000' }
+                    : undefined,
+                })),
+            }
+          : undefined;
+        return {
+          placeId:          p.place_id ?? '',
+          name:             p.name ?? '',
+          address:          p.formatted_address ?? (p as google.maps.places.PlaceResult).vicinity ?? '',
+          lat:              p.geometry?.location?.lat(),
+          lng:              p.geometry?.location?.lng(),
+          editorialSummary: p.editorial_summary?.overview,
+          photoUrl:         p.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }),
+          openingHours,
+          rating:           p.rating,
+          googleMapsUrl:    p.url,
+          ...overrides,
+        };
+      };
+
+      const base = buildDetails(place as PlaceWithEditorial);
+
+      // Autocomplete omits editorial_summary / url for some places.
+      // Always fire a follow-up getDetails to fill those gaps.
+      const svc = new google.maps.places.PlacesService(document.createElement('div'));
+      svc.getDetails(
+        {
+          placeId: place.place_id,
+          fields: ['editorial_summary', 'url', 'rating', 'photos'],
+        },
+        (details, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && details) {
+            const enriched = details as PlaceWithEditorial;
+            onSelectRef.current({
+              ...base,
+              editorialSummary: enriched.editorial_summary?.overview ?? base.editorialSummary,
+              photoUrl: details.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) ?? base.photoUrl,
+              rating:         details.rating          ?? base.rating,
+              googleMapsUrl:  details.url             ?? base.googleMapsUrl,
+            });
+          } else {
+            // getDetails failed — use autocomplete data as-is
+            onSelectRef.current(base);
           }
-        : undefined;
-
-      onSelectRef.current({
-        placeId:          place.place_id,
-        name:             place.name ?? '',
-        address:          place.formatted_address
-                            ?? (place as google.maps.places.PlaceResult).vicinity
-                            ?? '',
-        lat:              place.geometry?.location?.lat(),
-        lng:              place.geometry?.location?.lng(),
-        editorialSummary: editorial,
-        photoUrl,
-        openingHours,
-        rating:           place.rating,
-        googleMapsUrl:    place.url,
-      });
+        },
+      );
     });
 
     return () => {

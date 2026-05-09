@@ -70,8 +70,9 @@ export function ActivityCard({
   const showFork           = !!onToggleBackup;
   const showDescription    = true;
   const showTypeSwitcher   = isRegularPlace;
-  const showPlaceInfo      = isRegularPlace && !!activity.place &&
-    (!!activity.place.editorialSummary || activity.place.rating != null);
+  // Show the info row whenever a place is selected — even if editorial/rating are absent,
+  // we still render the ↗ link so users can always open the Google Maps page.
+  const showPlaceInfo      = isRegularPlace && !!activity.place;
 
   // Opening-hours status — only relevant for STAY / MEAL
   const hoursStatus = (activity.type === 'STAY' || activity.type === 'MEAL')
@@ -201,9 +202,7 @@ export function ActivityCard({
           <a
             href={
               activity.place!.googleMapsUrl ??
-              `https://www.google.com/maps/search/?api=1` +
-              `&query=${encodeURIComponent(activity.place!.name)}` +
-              `&query_place_id=${activity.place!.placeId}`
+              `https://www.google.com/maps/place/?q=place_id:${activity.place!.placeId}`
             }
             target="_blank"
             rel="noopener noreferrer"
