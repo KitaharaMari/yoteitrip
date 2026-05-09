@@ -1,0 +1,75 @@
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  nodeVersion: "20"
+  # maxInstances: 100
+  # concurrency: 80
+  # cpu: 1
+  # memoryMiB: 512
+
+  # Environment variables and secrets.
+  # env:
+  # Configure environment variables.
+  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
+  # - variable: MESSAGE
+  #   value: Hello world!
+  #   availability:
+  #     - BUILD
+  #     - RUNTIME
+
+  # Grant access to secrets in Cloud Secret Manager.
+  # You can create secrets with the CLI command `firebase apphosting:secrets:set <secretName>`.
+  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
+  # - variable: MY_SECRET
+  #   secret: mySecretRef
+env:
+  # ── Server-only key (Directions + Routes + Static Maps, never sent to browser) ──
+  - variable: SERVER_GOOGLE_MAPS_API_KEY
+    secret: server-google-maps-api-key
+    availability:
+      - RUNTIME
+
+  # ── Client key (Maps JS SDK + Places — must be available at BUILD time) ──
+  - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    secret: google-maps-api-key
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # ── Firebase client config (all NEXT_PUBLIC_ → must be available at BUILD) ──
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: firebase-api-key
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: firebase-auth-domain
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: firebase-project-id
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: firebase-storage-bucket
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: firebase-messaging-sender-id
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: firebase-app-id
+    availability:
+      - BUILD
+      - RUNTIME

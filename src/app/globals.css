@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  /* ── YoteiTrip brand tokens ── */
+  --brand-green:        #47BB8E;
+  --brand-green-dark:   #3DAF80;
+  --brand-dark:         #3D5568;
+  --brand-dark-deep:    #2E4254;
+  --brand-bg:           #F0F7F4;   /* very light mint — matches logo background */
+  --brand-bg-card:      #ffffff;
+
+  /* ── Base colours ── */
+  --background: var(--brand-bg);
+  --foreground:  #1a2b38;
+}
+
+@theme inline {
+  --color-background:   var(--background);
+  --color-foreground:   var(--foreground);
+  --color-brand-green:  var(--brand-green);
+  --color-brand-dark:   var(--brand-dark);
+  --color-brand-bg:     var(--brand-bg);
+  --font-sans: var(--font-nunito);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  /* Nunito for Latin; rounded system CJK fonts for Chinese */
+  font-family: var(--font-nunito), 'PingFang SC', 'Hiragino Sans GB',
+               'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar while keeping scroll functionality */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* iOS safe-area padding utilities */
+@utility pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}

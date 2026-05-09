@@ -1,0 +1,360 @@
+================================================================================
+YOTEITRIP — Google Maps Transit Mode 调试完整记录
+================================================================================
+时间跨度：2026-05-05 ~ 2026-05-06
+结论摘要：Google Maps Platform 对本项目的 Transit 路由无效，建议改用第三方日本公交 API
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 1】Maps JS SDK DirectionsService — placeId 格式重试
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  用户反映 TRANSIT 模式只能得到驾车结果
+  Console 显示：[Directions] Transit ZERO_RESULTS — falling back to DRIVING
+
+失败原因分析：
+  placeId 在部分地区 Transit 路由不稳定
+
+修改内容：
+  useTransitRoute.ts 的重试链扩展为 3 阶段：
+    stage 0: TRANSIT + placeId（原始）
+    stage 1: TRANSIT + 坐标（新增）
+    stage 2: DRIVING 兜底
+
+结果：
+  stage 0 ZERO_RESULTS → 触发 stage 1
+  stage 1 仍 ZERO_RESULTS
+  Console: [Directions] Transit ZERO_RESULTS (coords) — falling back to DRIVING
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 2】修复 mapsLoaded 依赖缺失导致的重载后"计算中"卡死
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  页面重载后 localStorage 数据已恢复，但通勤时间永远显示"计算中…"
+
+失败原因分析：
+  useTransitRoute / useCommuteTime 的 useEffect 在 Maps API 未加载时提前 return
+  Maps API 加载完成后 deps 未变化，effect 不会重新触发
+
+修改内容：
+  两个 hook 新增 mapsLoaded: boolean 参数
+  CommuteConnector 传入 useMapsLoaded()
+  mapsLoaded 加入 useEffect deps 数组
+
+结果：
+  重载后时间计算恢复正常（DRIVING 正常）
+  TRANSIT 仍 ZERO_RESULTS（独立问题）
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 3】Stage 2 新增地址字符串重试
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  placeId 和坐标两种方式都失败，尝试用 formatted_address 字符串
+
+失败原因分析：
+  POI 精确坐标有时不在可路由网格上，地址字符串由 Google geocoder 解析到更接近街道的点
+
+修改内容：
+  重试链扩展为 4 阶段：
+    stage 0: TRANSIT + placeId
+    stage 1: TRANSIT + 坐标
+    stage 2: TRANSIT + 地址字符串（formatted_address）
+    stage 3: DRIVING 兜底
+  Deps 新增 fromAddr / toAddr
+
+Console 输出（stage 2）：
+  [Directions] → TRANSIT | stage: 2
+    from: 2-chōme-19-1 Katasekaigan, Fujisawa, Kanagawa 251-0035日本
+    to: The Otemachi Tower, 1-chōme-5-6 Ōtemachi, Chiyoda City, Tokyo 100-0004日本
+
+结果：
+  地址字符串也是 ZERO_RESULTS
+  directions.js:8 Directions request returned no results
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 4】排查网络/IP 因素 + 确认路线为真实日本路线
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  用户确认测试的是日本路线（藤泽→东京、东京→京都），理应有完整数据
+
+诊断步骤：
+  浏览器 console：fetch('https://api.ipify.org?format=json').then(...)
+  终端 curl：curl https://api.ipify.org
+  两者 IP 均为 173.183.35.49（美国 IP），确认网络路径一致
+
+结论：
+  不是网络路径问题，排除 VPN 分流因素
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 5】服务端代理 /api/transit — 绕过 CORS 直接调用 Directions REST API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  前端 fetch 到 maps.googleapis.com 被 CORS 阻断，无法直接测试 REST API
+  创建 Next.js API Route 作为服务端代理
+
+新建文件：
+  src/app/api/transit/route.ts
+
+初始实现：
+  departure_time 用系统时间 Unix timestamp（Math.floor(Date.now() / 1000)）
+
+Console 输出（终端）：
+  [Transit API] departure_time = 1777974899  2026-05-05T...Z
+  [Transit API] → https://maps.googleapis.com/.../directions/json?...&departure_time=1777974899
+  [Transit API] ZERO_RESULTS | routes: 0 | error: —
+
+诊断发现：
+  同一 URL 在浏览器（普通标签页）打开显示 status: OK 有路线数据
+  服务端 ZERO_RESULTS，浏览器 OK → 怀疑浏览器有缓存或 cookie 差异
+
+后续对比：
+  无痕浏览器测试（无缓存/无 cookie）→ ZERO_RESULTS
+  证实：普通浏览器显示的 OK 是缓存结果，真实 API 状态是 ZERO_RESULTS
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 6】departure_time 格式修正：Unix timestamp → 字符串 "now"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  系统时钟为 2026-05-05，Google 公交时刻表数据可能未覆盖到 2026
+  改用 "now" 字符串，让 Google 服务端用自己的当前时间
+
+修改：
+  departure_time=now（字符串）替代 Unix timestamp
+
+无痕浏览器测试 departure_time=now：
+  URL: .../directions?...&mode=transit&departure_time=now&key=...
+  结果仍为 ZERO_RESULTS
+  available_travel_modes: ["DRIVING", "WALKING", "BICYCLING"]（无 TRANSIT）
+
+结论：
+  departure_time 格式不是问题根因
+  available_travel_modes 不含 TRANSIT 才是关键信号
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 7】多种 URL 参数组合排查
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+逐一排查各参数对结果的影响：
+
+(a) URLSearchParams 编码（%2C vs ,）
+    怀疑坐标中逗号被编码为 %2C 导致解析失败
+    改用 encodeURIComponent(...).replace(/%2C/gi, ',')
+    结果：仍 ZERO_RESULTS
+
+(b) 添加 region=JP & language=ja
+    尝试强制指定日本区域
+    结果：仍 ZERO_RESULTS
+
+(c) 添加/移除 User-Agent & Referer 仿浏览器头
+    结果：无差异，仍 ZERO_RESULTS
+
+(d) 直接 DRIVING 测试（同一 API key，同一服务端代理）
+    curl /api/transit?...&mode=driving
+    结果：status OK，routes: 1
+    ✅ 证明 Directions API 本身已启用、key 有效、服务端 fetch 正常
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 8】确认账单（Billing）已启用
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  Google Maps Platform 在无账单情况下 transit 静默返回 ZERO_RESULTS
+
+操作：
+  Google Cloud Console → Billing → 确认项目 travelgoo-1cba3 已绑定账单账号
+
+结果：
+  账单已启用，仍然 ZERO_RESULTS
+  排除账单问题
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 9】新 API Key（不同项目）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  怀疑旧 key 存在隐性限制，创建全新无限制 key 测试
+
+新 key：AIzaSyB2-vrK0hmrUX_0sBIuAY6gcbI1b6W6wSw（不同项目）
+
+Maps JavaScript API 错误：
+  ExpiredKeyMapError → 新项目未启用 Maps JavaScript API
+
+处理：
+  为新项目启用 Maps JavaScript API + Places API + Directions API
+
+Routes API v2 测试（浏览器）：
+  fetch 到 routes.googleapis.com
+  结果：{} 空对象（0 routes）
+
+无痕浏览器 Directions API 测试（坐标方式）：
+  短距离东京路线（35.6854887 → 35.7022589，约 2km）：OK
+  东京→京都（35.6854887 → 34.985849）：ZERO_RESULTS
+
+关键发现：
+  短距离东京地铁路线有数据，长距离（新干线）无数据
+  新 key 依然无法获取新干线路由
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 10】Routes API v2（服务端 POST 请求）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  旧 Directions API 一直失败，Routes API v2 是 Google 推荐的新版本
+
+实现：
+  /api/transit/route.ts 新增 POST 到 routes.googleapis.com/directions/v2:computeRoutes
+  Body: { origin, destination, travelMode: "TRANSIT", departureTime: ISO string }
+
+终端日志：
+  [Transit/RoutesAPI] 200 | routes: 0 | origin: 35.6854887,... | dest: 34.985849,...
+  [Transit/RoutesAPI] no routes — falling back to Directions API
+
+结果：
+  Routes API v2 返回 0 routes，回退至 Directions API
+  两者均 ZERO_RESULTS
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 11】从 Google Date 响应头获取真实时间，计算 next 09:00 JST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  系统时钟可能与实际时间不符导致时间戳无效
+  从 Google 响应头读取真实时间，找下一个 09:00 JST（新干线运营高峰）
+
+实现：
+  GET https://www.google.com（HEAD 请求）→ 读取 Date: header
+  计算 hoursUntil9 = ((9 - jstHour + 24) % 24) || 24
+  使用 realNow + hoursUntil9 * 3600000 作为 departure_time
+
+终端日志：
+  [Transit] departure_time = 1778026005  2026-05-06T00:06:45.000Z
+  （= 2026-05-06 09:06 JST，确认在新干线运营时段）
+
+结果：
+  Routes API: routes 0
+  Directions API: ZERO_RESULTS
+  确认时间不是问题根因，Google 服务端确实在 2026 年运行
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 12】Maps JS SDK DirectionsService TRANSIT（浏览器端）重新启用
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  之前 server proxy 替代了 SDK 的 transit 路径
+  重新在 server proxy 失败后加回 JS SDK TRANSIT 尝试
+
+实现：
+  useTransitRoute.ts 在 server proxy 后增加 SDK TRANSIT fallback
+  使用 next 09:00 JST 作为 departureTime
+
+Console 输出：
+  [Directions/SDK] → TRANSIT 2026-05-06T00:27:00.727Z
+  [Directions/SDK] ← ZERO_RESULTS TRANSIT
+
+结果：
+  JS SDK TRANSIT 同样 ZERO_RESULTS
+  三种方式（Server Proxy、Routes API、JS SDK）全部失败
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 13】切换到 travelgoo-1cba3 项目的新 API Key
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  发现新 key（AIzaSyB2...）属于错误项目（非 travelgoo-1cba3）
+  用户曾报告早期版本 transit 正常工作
+  判断旧版工作的 key 就在 travelgoo-1cba3 项目中
+
+操作：
+  在 travelgoo-1cba3 项目中创建新 key：AIzaSyAga-XPV3lBCBSe4QjmY8qbWHViGHJbbZ4
+  更新 .env.local
+
+Maps JavaScript API 报错：
+  ApiNotActivatedMapError → 该项目同样需要启用 Maps JavaScript API
+
+处理：
+  为 travelgoo-1cba3 启用 Maps JavaScript API + Places API + Directions API
+
+结果：
+  地图加载正常
+  TRANSIT 依旧 ZERO_RESULTS（同项目旧 key 据称曾工作，但目前无法复现）
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【尝试 14】Distance Matrix API TRANSIT 模式验证
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+背景：
+  用户提示早期版本可能用过不同 API 方式
+  Distance Matrix 支持 TRANSIT 模式，测试是否有效
+
+测试 URL（字符串 now）：
+  https://maps.googleapis.com/maps/api/distancematrix/json?
+    origins=35.6812,139.7671&destinations=34.9858,135.7588
+    &mode=transit&departure_time=now&key=...
+
+结果：
+  duration: "5 小時 40 分鐘"（驾车时间，新干线应为约 2h15m）
+  响应中含 duration_in_traffic（驾车专属字段）
+  → mode=transit 被忽略，fallback 为 DRIVING
+
+原因：
+  departure_time=now（字符串）对 Distance Matrix API 无效
+  API 忽略 transit mode，直接返回驾车结果
+
+二次测试（整数时间戳 1778094000 = 2026-05-07 04:00 JST）：
+  结果仍为 5 小时 40 分钟（驾车）
+  → 即使用整数时间戳，transit 依然不返回公交数据
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【最终结论】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+经过 14 次尝试，覆盖了以下所有 Google Maps 公交路由方式：
+
+  ✗  Maps JS SDK DirectionsService TRANSIT（placeId / 坐标 / 地址字符串）
+  ✗  Directions REST API（服务端代理，departure_time=now / 整数时间戳）
+  ✗  Routes API v2（服务端 POST，含 languageCode/regionCode）
+  ✗  Distance Matrix API TRANSIT（字符串 now / 整数时间戳）
+  ✗  新旧两个 API Key、两个不同 Google Cloud 项目
+
+确认正常的功能：
+  ✅  Directions API DRIVING（所有方式均正常）
+  ✅  Maps JS SDK DRIVING
+  ✅  Distance Matrix DRIVING
+
+根本原因推断：
+  Google Maps Platform 对该项目/账号无日本长距离公交（新干线）数据授权。
+  短距离东京市内路线（约 2km）曾返回 OK，但不含 TRANSIT 步骤，
+  只是 available_travel_modes 中有 DRIVING，实际依然为驾车路线。
+  所有 TRANSIT 请求中 available_travel_modes 均不含 TRANSIT，
+  证明问题在于 Google Maps API 数据层，非代码层。
+
+当前处理方式：
+  TRANSIT 模式自动 fallback 为 DRIVING
+  UI 显示 "🚗 无公交" 标签，用户可手动重试公交
+
+下一步：
+  接入第三方日本公交 API（Yahoo Japan Transit API 或 Navitia）
+  获取 API Token 后更新 /api/transit/route.ts
+
+================================================================================

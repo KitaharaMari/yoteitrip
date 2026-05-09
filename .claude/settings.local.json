@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(npm uninstall *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Users\\\\Justin\\\\triptool\\\\.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cache cleared\")",
+      "PowerShell(Get-Process *)",
+      "Bash(npx eslint *)",
+      "PowerShell(Copy-Item *)"
+    ]
+  }
+}

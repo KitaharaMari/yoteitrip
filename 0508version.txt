@@ -1,0 +1,343 @@
+================================================================================
+YOTEITRIP — 开发进度快照 (2026-05-08)
+================================================================================
+原名 Traveline，2026-05-08 正式更名为 YoteiTrip。
+本文档作为 Claude 会话重启时的同步基准，记录截至 2026-05-08 的完整实现状态。
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+一、项目概述
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+模块化旅游日程规划工具。去中心化、非线性"积木式"规划，支持分钟级精确时间轴。
+纯客户端 Web App，无传统后端，数据存 localStorage（游客模式）或 Firebase Firestore（登录模式）。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+二、技术栈（package.json 依赖）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+框架:       Next.js 16.2.4 (App Router)
+UI:         React 19.2.4 + Tailwind CSS v4
+状态:       Zustand 5.0.12 + persist middleware (localStorage)
+拖拽:       @dnd-kit/core + @dnd-kit/sortable
+动画:       Framer Motion 12
+地图:       Google Maps JS SDK (@types/google.maps)
+时间:       Luxon 3
+导出:       html2canvas + jsPDF + qrcode
+云同步:     Firebase 12.13.0 (Auth + Firestore)
+语言:       TypeScript 5 strict
+
+服务端代理: Next.js Route Handler (/api/transit)
+天气 API:   Open-Meteo（免费，无需 key）
+地图 API:   Google Maps / Routes API v2 / Directions API / Places API / Static Maps
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+三、环境变量（.env.local）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=   ← Google Maps JS SDK + Places + Static Maps
+TRANSIT_API_KEY=                    ← 服务端 Routes API v2 / Directions API（可复用上面的 key）
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+Firebase 未配置时 app 正常运行（游客模式），登录按钮点击后显示配置说明。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+四、完整文件列表（src/）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+app/
+  layout.tsx              ← 全局 layout，挂载 StoreHydration + AuthProvider + MapProvider
+  page.tsx                ← 首页 → <TripDashboard />
+  template.tsx            ← Framer Motion 页面过渡动画
+  trip/[id]/page.tsx      ← 单行程页面，use(params) + setCurrentTrip
+  api/transit/route.ts    ← 服务端代理：Routes API v2 → Directions API fallback
+                            接受 ?origin=&destination=&departureTime= (Unix 秒)
+                            内置过期时间戳修正（自动+7天保证 Google API 接受）
+
+types.ts                  ← 所有类型定义，关键接口：
+  Trip { id, name, days, currency, baseLocation, coverPhotoUrl, createdAt, updatedAt }
+  Day  { id, label, date?, originPlace?, originTime?, carSettings?, travelMode?, activities[] }
+  Activity { id, type, title, place?, startTime, duration, transitFare?,
+             commuteDrivingMeters?, commutePolyline?, isManualTime?, isBackup?,
+             linkedToId?, estimatedCost?, sceneTags?, description?, notes? }
+  PlaceDetails { placeId, name, address, lat?, lng?, editorialSummary?,
+                 photoUrl?, openingHours?, rating?, googleMapsUrl? }
+  ActivityType = 'TRANSPORT' | 'STAY' | 'MEAL' | 'ACCOMMODATION' | 'LONG_DISTANCE'
+  BaseLocation { name, lat, lng }
+
+store/
+  useTripStore.ts         ← 核心状态管理
+    persist key: 'yoteitrip-trip'  ← 注意：原为 'traveline-trip'，更名后旧数据不自动迁移
+    trips: Trip[], currentTripId, trip（denormalized mirror）, wishlist
+    actions: createTrip(title, baseLocation?, coverPhotoUrl?), deleteTrip, renameTrip,
+             setCurrentTrip, addDay, deleteDay, updateDay（日期级联双向传播）,
+             addActivity, insertActivity, updateActivity, deleteActivity,
+             reorderActivities, loadTrip, loadFromCloud, addBackupActivity,
+             setPreferred, removeBackupActivity, addToWishlist, removeFromWishlist,
+             updateWishlistItem, setCoverPhoto
+    addDay 逻辑: 自动继承最后一天的日期 +1（若有日期）
+    updateDay 日期级联: 改任意一天的日期 → 前后所有天同步偏移（双向）
+
+  useAuthStore.ts         ← Firebase Auth 状态
+    user: User | null, authReady: boolean
+
+lib/
+  firebase.ts             ← Firebase 单例 getFirebaseApp() + isFirebaseConfigured()
+  firestore.ts            ← loadCloudData(uid) / saveCloudData(uid, data)
+                            CloudData { trips, currentTripId, wishlist, savedAt }
+  constants.ts            ← ACTIVITY_META: icon + label for each ActivityType
+  departureTime.ts        ← buildDepartureDate(HH:mm, isoDate?)
+                            若日期在过去，自动 +7天整数倍使其在未来（保 Google API 接受）
+  haversine.ts            ← haversineKm(lat1,lng1,lat2,lng2) + formatDist(km)
+  openingHours.ts         ← getOpenStatus() → 'OPEN'|'CLOSES_SOON'|'CLOSED'|'UNKNOWN'
+  staticMap.ts            ← buildStaticMapUrl(trip, apiKey) → Google Static Maps URL
+  weather.ts              ← fetchWeather(lat,lng,isoDate) → WeatherData | null
+                            Open-Meteo API，支持历史(archive) + 预报(forecast ≤16天)
+                            clothingAdvice(tempMax, wmoCode) → 穿搭建议字符串
+                            RAIN_CODES, SNOW_CODES, BAD_CODES (Set<number>)
+
+hooks/
+  useTransitRoute.ts      ← 核心通勤时间 hook
+    useTransitRoute(from, to, mode, mapsLoaded, departureTime?) → RouteResult | null
+    优先 server-side 代理（Routes API v2 → Directions REST）
+    fallback: Google Maps JS SDK（TRANSIT → DRIVING fallback）
+    deptTs 作为 stable dep，规避 Date 对象每次新建的 effect 重触问题
+    departureTime 在 effect 内从 deptTs 重建 (dept = deptTs > 0 ? new Date(deptTs) : undefined)
+    cache: mode + placeId 键，设有 departureTime 时跳过缓存
+
+  useWeather.ts           ← useWeather(lat, lng, isoDate) → WeatherData|null|'loading'
+                            模块级 Map 缓存，相同 lat+lng+date 不重复请求
+
+  useFirestoreSync.ts     ← 监听 trips/currentTripId/wishlist 变化，2s 防抖写 Firestore
+  useCommuteTime.ts       ← 旧 hook（已被 useTransitRoute 替代，可能仍存在）
+
+components/
+
+  ── 核心页面 ──
+  TripDashboard.tsx       ← 首页大厅
+    TripCard: 封面图（Google Maps 照片 or 渐变色）+ hover overlay (重命名/换封面/删除)
+    NewTripModal: 城市选择 → 自动抓取 Google Maps 封面图 + 预览
+    CoverPickerModal: 上传本地图片 + canvas 压缩(960×540, JPEG 82%) + 移除封面
+    DeleteConfirmModal: 删除确认
+    UserMenu: 登录状态/头像下拉菜单（退出登录）
+    AuthModal 触发入口
+
+  TripView.tsx            ← 单行程视图（tab 切换 day + 滑动）
+    DayScroller: 日期 tab 导航
+    日期编辑、日期级联（任意 day 改日期 → 全部偏移）
+    当日出行模式切换（🚌/🚗 segmented control，存 day.travelMode）
+    startDate / endDate 入口（updateDay 触发级联）
+    ← 返回大厅 link
+
+  ActivityList.tsx        ← 单天活动列表
+    DayOriginCard: 出发地 + 出发时间编辑
+    DayWeatherBar: 天气模块（当有日期+出发坐标时显示）
+    OriginConnector: 出发地 → 第一个活动的通勤连接线
+    SortableActivityItem + CommuteConnector: 活动卡 + 通勤连接线
+    BackupSlot: Plan B 备选方案展开槽
+    ProximityBubbles: 附近 wishlist 地点气泡（< 3km）
+    AccommodationQuickPick: 住宿模块无地点时显示快捷选项（出发地 + 当日其他住宿）
+    DayStatsBar: 驾车里程 + 油费统计
+    预算汇总（活动费 + 交通票价）
+    AddModule 区域（STAY / MEAL / ACCOMMODATION / LONG_DISTANCE）
+
+  ── 活动卡片 ──
+  ActivityCard.tsx        ← 活动卡核心
+    showDurationPicker: STAY / MEAL / ACCOMMODATION / LONG_DISTANCE 均可调时长
+    showTypeSwitcher: STAY / MEAL / ACCOMMODATION 间可切换类型（3个 chip）
+    showPlaceInfo: 有 editorialSummary 或 rating 时显示信息栏 + ↗谷歌地图链接
+      Google Maps 链接: 优先用 place.googleMapsUrl（Places API url字段），
+                        fallback: ?api=1&query=NAME&query_place_id=PLACE_ID
+    开业时间预警 badge: ⚠️ Closed at this time / 🕒 Closes soon
+
+  SortableActivityItem.tsx ← DnD 包装层
+  BackupCard.tsx           ← Plan B 备选卡
+
+  ── 通勤连接线 ──
+  CommuteConnector.tsx    ← 活动间通勤（时长 + 步骤展开 + 模式切换）
+                            自动计算 prevEndTime = startTime + duration 作 departureTime
+  OriginConnector.tsx     ← 出发地 → 第一活动通勤（同上）
+                            两者均从 store 读 dayDate，调用 buildDepartureDate
+
+  ── 搜索 ──
+  SearchOverlay.tsx       ← Google Places Autocomplete 全屏搜索
+    fields: place_id, name, formatted_address, geometry, vicinity,
+            editorial_summary, photos, opening_hours, rating, url
+    地理围栏: 1000km + baseLocation 锚点，可切换全球搜索
+
+  ── 功能模块 ──
+  DayWeatherBar.tsx       ← 天气模块
+    originWeather + (longDistance ≥200km → destWeather)
+    alert 条件: 目的地有雨/雪，温差 ≥8°C
+    只在 !isPreview 且有 date + origin 坐标时显示
+
+  DayStatsBar.tsx         ← 驾车里程 + 油耗 + 油价统计（可编辑消耗/油价）
+  DurationPicker.tsx      ← 时长选择器（9预设 + 自定义±1h/±5m）
+  TimeInput.tsx           ← 时间输入（点击展开滚动选择）
+  DayOriginCard.tsx       ← 出发地 + 出发时间卡片
+  WishlistDrawer.tsx      ← 全局灵感清单抽屉
+                            按距离分区：≤1000km 附近 / 其他
+                            收藏后选分类（🏛️景点 / 🍽️餐厅）
+  BackupSlot.tsx          ← Plan B 备选方案展开区
+  DayScroller.tsx         ← Day tab 横向滚动导航
+
+  ── 导出 ──
+  ExportModal.tsx         ← 数据 & 分享弹窗（4 tab）
+    导出数据: btoa(encodeURIComponent(JSON.stringify(trip)))
+    导入: decode + loadTrip
+    分享图: html2canvas → PNG（QR 使用精简数据，errorCorrectionLevel:'L'）
+    PDF路书: html2canvas → jsPDF A4 分页
+    QR 生成: slimForQr() 剥离 photoUrl/openingHours/commutePolyline 后 QR 编码
+
+  ShareCard.tsx           ← 离屏渲染分享卡（position:fixed left:-9999px）
+                            70%/30% 主活动/Plan B 布局 + 静态地图 + QR 码
+
+  ── 认证 ──
+  AuthProvider.tsx        ← 全局 Firebase auth 监听 + 登录时数据同步逻辑
+    新用户: 自动上传本地数据到云端
+    老用户新设备: 自动加载云端数据
+    双端有内容: 显示 SyncConflictModal 让用户选择
+
+  AuthModal.tsx           ← 登录弹窗
+    Google OAuth (signInWithPopup)
+    邮箱密码 (signInWithEmailAndPassword / createUserWithEmailAndPassword)
+    游客模式（关闭弹窗继续本地使用）
+    Firebase 未配置时显示配置说明
+
+  SyncConflictModal.tsx   ← 云端/本地冲突选择（使用云端 / 保留本机上传）
+  UserMenu.tsx            ← 头像按钮 + 下拉菜单（登录状态 / 退出）
+  MapProvider.tsx         ← Google Maps JS SDK 异步加载
+  StoreHydration.tsx      ← Zustand skipHydration + 客户端 rehydrate
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+五、核心逻辑说明
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【通勤时间计算 (useTransitRoute)】
+1. 调用 /api/transit 服务端代理（绕过 CORS）
+   POST → Google Routes API v2（带 departureTime ISO 字符串）
+   GET  → Google Directions REST API（fallback，带 departure_time Unix 秒）
+2. 服务端自动修正过期时间戳：若 departureTs ≤ now，+7天整数倍（保留星期特征）
+3. 客户端 buildDepartureDate：isoDate 在过去时也 +7天整数倍
+4. JS SDK fallback：TRANSIT 失败 → 自动 fallback DRIVING
+
+【日期级联 (updateDay)】
+trip.days.map((d, i) => {
+  if (i === dayIdx) return { ...d, ...updates };
+  if (updates.date) {
+    const offset = i - dayIdx;  // 负数 = 往前，正数 = 往后
+    const next = new Date(y, mo-1, dy + offset);
+    return { ...d, date: iso };
+  }
+  return { ...d, date: undefined };
+})
+// 改任意 day 的日期，前后所有 day 同步偏移
+
+【addDay 日期继承】
+const lastDay = trip.days[trip.days.length - 1];
+if (lastDay?.date) newDay.date = lastDay.date + 1天
+
+【封面图流程】
+创建行程 → 城市选择 → Places API photos[0].getUrl() → coverPhotoUrl
+更换封面 → CoverPickerModal → 用户上传 → canvas resize(960×540, JPEG 82%) → base64 → coverPhotoUrl
+TripCard: coverPhotoUrl ? <img> + bg-black/35 scrim : gradientFor(index)
+
+【Firebase 同步流程】
+useFirestoreSync: 监听 trips/currentTripId/wishlist → 2s debounce → saveCloudData
+AuthProvider.onAuthStateChanged:
+  user 登录 → loadCloudData
+  云端空 → 上传本地
+  本地空 → 加载云端
+  双端有内容 → SyncConflictModal
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+六、Firebase 控制台配置步骤（待完成）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Firebase Console → 新建项目
+2. Authentication → 启用 Google + Email/Password 登录方式
+3. Firestore Database → 创建数据库（生产模式）
+4. Firestore 安全规则：
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid}/{document=**} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+5. Project Settings → Web App → 复制 config 填入 .env.local
+6. Authentication → Settings → Authorized domains → 添加部署域名
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+七、已知限制 / 待优化
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 时区问题：buildDepartureDate 使用浏览器本地时区，非目的地时区
+   影响跨时区旅行的通勤时间估算精度（如温哥华用户规划东京行程）
+   待优化：抓取 Google Time Zone API，存入 Trip.baseLocation.timezone
+
+2. 天气仅支持 ≤16天预报，超出范围不显示（Open-Meteo 限制）
+
+3. localStorage persist key 已从 'traveline-trip' 改为 'yoteitrip-trip'
+   旧数据不自动迁移（需手动在 DevTools 复制 localStorage key）
+
+4. base64 封面图存 localStorage/Firestore，大图可能影响存储配额
+   每张图约 50-80 KB（960×540 JPEG 82%）
+
+5. Google Maps Place Photo URL（来自 NewTripModal 自动抓取的封面）
+   可能在数月后过期（photo reference 有效期限制）
+
+6. 导出 QR 仅包含精简行程数据（无照片、开业时间、路线），足以导入但缺少展示数据
+
+7. 多设备实时同步：目前为 2s debounce 单向写入（非 Firestore onSnapshot 实时监听）
+   两个设备同时编辑同一行程会覆盖先写入的一方
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+八、功能清单（全部已实现）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[✓] 多行程大厅（创建/删除/重命名/封面图）
+[✓] 多天日程（Day 1 ~ N，无限扩展）
+[✓] 四种活动模块：景点/餐饮/住宿/长途移动
+[✓] 分钟级时间轴（自动级联，isManualTime 锚点）
+[✓] 通勤时间自动计算（Google Routes/Directions API，服务端代理）
+[✓] 实际出发时间感知的通勤估算（非固定 9AM）
+[✓] 公共交通 / 自驾模式切换（day 级别 + 每段 override）
+[✓] 站点信息展示（线路名、换乘站）
+[✓] 驾车里程 + 油费统计（可配置油耗/油价）
+[✓] 全局 Wishlist 灵感清单（附近气泡联动）
+[✓] Plan B 备选方案（FLIP 动画互换）
+[✓] 日期设置（任意 day 改日期 → 全部同步偏移）
+[✓] Day origin（出发地 + 出发时间）
+[✓] 天气模块（Open-Meteo，服装建议，200km 跨城市天气对比预警）
+[✓] 景点评分 + AI 摘要展示（Places API editorial_summary + rating）
+[✓] 一键跳转 Google Maps 地点页（Places API url 字段 + fallback URL）
+[✓] 活动类型切换器（景点/餐饮/住宿 互换）
+[✓] 住宿快捷选项气泡（出发地 + 当日已设住宿）
+[✓] 开业时间预警（⚠️ Closed / 🕒 Closes soon）
+[✓] 地理围栏搜索（1000km 锚点 + 全球搜索切换）
+[✓] 行程封面（创建时自动抓取城市图，可上传自定义图片）
+[✓] 数据导出（base64 字符串 + QR 码）
+[✓] 数据导入
+[✓] 分享图（html2canvas PNG）
+[✓] PDF 路书（html2canvas + jsPDF A4）
+[✓] 页面动画（Framer Motion 页面过渡 + FLIP + Plan B swap）
+[✓] DnD 排序（@dnd-kit，拖拽重排活动）
+[✓] Mobile-first 响应式设计
+[✓] Firebase 登录（Google OAuth + 邮箱密码 + 游客模式）
+[✓] 云同步（Firestore，2s debounce auto-save）
+[✓] 登录时本地数据同步（冲突检测 + 用户选择）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+九、下一步方向（未实现）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Firebase App Hosting / Vercel 部署
+- 目的地时区感知（Google Time Zone API）
+- Firestore onSnapshot 实时监听（多设备冲突解决）
+- 行程分享链接（短链 + 只读预览模式）
+- 货币汇率（实时或固定汇率换算）
+- 用户自定义活动图标/颜色
+- 离线 PWA 支持
+================================================================================
+END OF SNAPSHOT — YoteiTrip v0.1.0 (2026-05-08)
+================================================================================
