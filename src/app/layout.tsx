@@ -13,6 +13,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://yoteitrip.vercel.app'),
   title: 'YoteiTrip',
   description: '模块化旅游日程规划工具',
   manifest: '/manifest.json',
