@@ -18,7 +18,6 @@ import { BackupSlot } from './BackupSlot';
 import { SearchOverlay } from './SearchOverlay';
 import { DayOriginCard } from './DayOriginCard';
 import { OriginConnector } from './OriginConnector';
-import { DayWeatherBar } from './DayWeatherBar';
 
 interface Props {
   dayId: string;
@@ -110,6 +109,16 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
     ? { lat: anchorLat, lng: anchorLng, name: anchorName }
     : null;
 
+  // ── Backup readiness ─────────────────────────────────────────────────────
+  const backupLinkedIds = new Set(
+    activities.filter((a) => a.isBackup && a.linkedToId).map((a) => a.linkedToId!)
+  );
+  const backupableActivities = primaryActivities.filter(
+    (a) => a.type === 'STAY' || a.type === 'MEAL'
+  );
+  const coveredActivities   = backupableActivities.filter((a) => backupLinkedIds.has(a.id));
+  const uncoveredActivities = backupableActivities.filter((a) => !backupLinkedIds.has(a.id));
+
   // ── Budget ───────────────────────────────────────────────────────────────
   const activityCost = primaryActivities
     .filter((a) => (a.type === 'STAY' || a.type === 'MEAL') && a.estimatedCost != null)
@@ -154,13 +163,58 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
             onUpdateTime={(t) => updateDay(dayId, { originTime: t })}
           />
 
-          {/* ── Weather bar — only when date + origin coords are known ── */}
-          {!isPreview && dayDate && originPlace?.lat != null && (
-            <DayWeatherBar
-              date={dayDate}
-              originPlace={originPlace}
-              activities={activities}
-            />
+          {/* ── Backup readiness card ── */}
+          {!isPreview && backupableActivities.length > 0 && (
+            <div className="mb-1.5 flex flex-col gap-1">
+              {uncoveredActivities.length === 0 ? (
+                /* All covered — compact green confirmation */
+                <div className="px-3.5 py-2.5 rounded-2xl bg-emerald-50 flex items-center gap-2">
+                  <span className="text-base leading-none">✅</span>
+                  <p className="text-[11px] text-emerald-700 font-medium">
+                    所有景点与餐饮均已备用方案
+                    <span className="ml-1 font-normal text-emerald-500">
+                      ({coveredActivities.length}/{backupableActivities.length})
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                /* Partial / zero coverage */
+                <div className="px-3.5 py-2.5 rounded-2xl bg-amber-50 flex flex-col gap-2">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm leading-none">📋</span>
+                      <span className="text-[11px] font-semibold text-amber-800">备用方案准备</span>
+                    </div>
+                    <span className="text-[10px] text-amber-600 tabular-nums font-medium">
+                      {coveredActivities.length} / {backupableActivities.length} 已覆盖
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-1 rounded-full bg-amber-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                      style={{
+                        width: `${(coveredActivities.length / backupableActivities.length) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  {/* Uncovered chips */}
+                  <div className="flex flex-wrap gap-1 items-center">
+                    <span className="text-[10px] text-amber-500 flex-none">待补充：</span>
+                    {uncoveredActivities.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-white/80 text-[10px] text-amber-700 border border-amber-200"
+                      >
+                        <span>{a.type === 'STAY' ? '🏛' : '🍽️'}</span>
+                        <span className="truncate max-w-[72px]">{a.title || '未命名'}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Connector from origin → first activity (only when both have places) */}
