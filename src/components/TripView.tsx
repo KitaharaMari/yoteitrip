@@ -108,23 +108,8 @@ export function TripView() {
         {/* Date + day travel mode row */}
         {activeDay && !isPreview && (
           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-white/60">
-            <span className="text-xs text-gray-400">📅</span>
-            <input
-              type="date"
-              value={activeDay.date ?? ''}
-              onChange={(e) => updateDay(activeDay.id, { date: e.target.value || undefined })}
-              className="flex-1 text-xs text-gray-600 bg-transparent outline-none cursor-pointer min-w-0"
-            />
-            {activeDay.date && (
-              <button
-                onClick={() => updateDay(activeDay.id, { date: undefined })}
-                className="text-xs text-gray-300 hover:text-gray-500 transition-colors flex-none"
-              >
-                ×
-              </button>
-            )}
-            {/* Day-level travel mode toggle — sets the default for all connectors */}
-            <div className="flex items-center gap-0.5 flex-none ml-1 bg-gray-100 rounded-full p-0.5">
+            {/* Travel mode toggle — moved to LEFT so native date-picker icon isn't covered */}
+            <div className="flex items-center gap-0.5 flex-none bg-gray-100 rounded-full p-0.5">
               {(['TRANSIT', 'DRIVING'] as const).map((m) => (
                 <button
                   key={m}
@@ -140,6 +125,21 @@ export function TripView() {
                 </button>
               ))}
             </div>
+            <span className="text-xs text-gray-400 flex-none">📅</span>
+            <input
+              type="date"
+              value={activeDay.date ?? ''}
+              onChange={(e) => updateDay(activeDay.id, { date: e.target.value || undefined })}
+              className="flex-1 text-xs text-gray-600 bg-transparent outline-none cursor-pointer min-w-0"
+            />
+            {activeDay.date && (
+              <button
+                onClick={() => updateDay(activeDay.id, { date: undefined })}
+                className="text-xs text-gray-300 hover:text-gray-500 transition-colors flex-none"
+              >
+                ×
+              </button>
+            )}
           </div>
         )}
 

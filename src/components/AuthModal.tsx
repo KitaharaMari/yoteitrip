@@ -54,6 +54,13 @@ export function AuthModal({ onClose }: Props) {
 
   const auth = getAuth(getFirebaseApp());
 
+  // Detect embedded browsers (WeChat, Instagram, Facebook, LINE, etc.)
+  // Google OAuth blocks sign-in from WebViews by policy.
+  const isWebView = typeof navigator !== 'undefined' && (
+    /micromessenger|wv|fban|fbav|instagram|line\/|twitter/i.test(navigator.userAgent) ||
+    /(iphone|ipod|ipad).*applewebkit(?!.*safari)/i.test(navigator.userAgent)
+  );
+
   const handleGoogle = async () => {
     setError('');
     setLoading(true);
@@ -131,10 +138,24 @@ export function AuthModal({ onClose }: Props) {
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors">✕</button>
         </div>
 
+        {/* WebView warning */}
+        {isWebView && (
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+            <p className="font-semibold mb-1">⚠️ 请在浏览器中打开</p>
+            <p>当前环境不支持 Google 登录。请复制链接，在 <strong>Safari</strong> 或 <strong>Chrome</strong> 中打开后再登录。</p>
+            <button
+              onClick={() => navigator.clipboard?.writeText('https://yoteitrip.vercel.app')}
+              className="mt-2 text-amber-700 underline"
+            >
+              复制网址
+            </button>
+          </div>
+        )}
+
         {/* Google */}
         <button
           onClick={handleGoogle}
-          disabled={loading}
+          disabled={loading || isWebView}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-2xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {/* Google "G" logo */}
