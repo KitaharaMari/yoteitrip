@@ -81,13 +81,6 @@ export function TripView() {
               {isPreview ? '✏️' : '👁️'}
             </button>
             <button
-              onClick={() => setShowWishlist(true)}
-              title="灵感清单"
-              className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
-            >
-              ✨
-            </button>
-            <button
               onClick={() => setShowExport(true)}
               title="数据 & 分享"
               className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
@@ -150,6 +143,7 @@ export function TripView() {
             isPreview={isPreview}
             originPlace={activeDay.originPlace}
             originTime={activeDay.originTime}
+            onOpenWishlist={() => setShowWishlist(true)}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">

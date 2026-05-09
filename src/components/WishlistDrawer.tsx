@@ -4,10 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ActivityType, BaseLocation, PlaceDetails, WishlistCategory, WishlistItem } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
-import { haversineKm, formatDist } from '@/lib/haversine';
 import { SearchOverlay } from './SearchOverlay';
-
-const TRIP_RADIUS_KM = 1000;
 
 const CATEGORY_META: Record<WishlistCategory, { icon: string; label: string; type: ActivityType }> = {
   RESTAURANT: { icon: '🍽️', label: '餐厅', type: 'MEAL' },
@@ -28,8 +25,6 @@ interface Props {
   baseLocation?: BaseLocation | null;
 }
 
-type NearbyEntry = { item: WishlistItem; distKm: number };
-
 export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: Props) {
   const wishlist           = useTripStore((s) => s.wishlist);
   const addToWishlist      = useTripStore((s) => s.addToWishlist);
@@ -39,8 +34,6 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
 
   const [isSearching, setIsSearching]   = useState(false);
   const [filter, setFilter]             = useState<FilterOption>('ALL');
-  const [showOthers, setShowOthers]     = useState(false);
-  // Holds a place after SearchOverlay closes — user picks category before it's added.
   const [pendingPlace, setPendingPlace] = useState<PlaceDetails | null>(null);
 
   const handlePlaceSelect = (place: PlaceDetails) => {
@@ -68,32 +61,6 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
   };
 
   const filtered = filter === 'ALL' ? wishlist : wishlist.filter((i) => i.category === filter);
-
-  // ── Proximity split ───────────────────────────────────────────────────────
-  let nearbyItems: NearbyEntry[] = [];
-  const otherItems: WishlistItem[] = [];
-
-  if (baseLocation) {
-    for (const item of filtered) {
-      if (item.lat != null && item.lng != null) {
-        const dist = haversineKm(baseLocation.lat, baseLocation.lng, item.lat, item.lng);
-        if (dist <= TRIP_RADIUS_KM) {
-          nearbyItems.push({ item, distKm: dist });
-        } else {
-          otherItems.push(item);
-        }
-      } else {
-        otherItems.push(item);
-      }
-    }
-    nearbyItems.sort((a, b) => a.distKm - b.distKm);
-  } else {
-    // Dashboard / no-base context: show all items without distance filtering
-    nearbyItems = filtered.map((item) => ({ item, distKm: 0 }));
-  }
-
-  const hasNearby = nearbyItems.length > 0;
-  const hasOthers = baseLocation && otherItems.length > 0;
 
   return (
     <>
@@ -181,79 +148,18 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col pb-safe-bottom pb-8">
-
-                  {/* ── Nearby / all items ── */}
-                  {hasNearby && (
-                    <>
-                      {/* Section label — only in trip context */}
-                      {baseLocation && (
-                        <div className="px-5 pt-3 pb-1.5 flex items-center gap-2">
-                          <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">
-                            📍 {baseLocation.name} 附近
-                          </span>
-                          <span className="text-[11px] text-gray-400">
-                            {nearbyItems.length} 个 · 1000km 内
-                          </span>
-                        </div>
-                      )}
-                      <div className="divide-y divide-gray-100 px-5">
-                        {nearbyItems.map(({ item, distKm }) => (
-                          <WishlistItemRow
-                            key={item.id}
-                            item={item}
-                            activeDayId={activeDayId}
-                            distKm={baseLocation && distKm > 0 ? distKm : undefined}
-                            onInsert={handleInsert}
-                            onRemove={() => removeFromWishlist(item.id)}
-                            onCycleCategory={() => cycleCategory(item.id, item.category)}
-                            onUpdateNote={(note) => updateWishlistItem(item.id, { note })}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                  {/* ── Out-of-range items (trip context only, collapsible) ── */}
-                  {hasOthers && (
-                    <>
-                      <button
-                        onClick={() => setShowOthers((v) => !v)}
-                        className="mx-5 mt-3 mb-0.5 flex items-center gap-2 py-2 px-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors text-left"
-                      >
-                        <span className="text-[11px] font-medium text-gray-400">🌏 目的地以外</span>
-                        <span className="text-[11px] text-gray-300">· {otherItems.length} 个</span>
-                        <span className="ml-auto text-[10px] text-gray-300">{showOthers ? '▲' : '▼'}</span>
-                      </button>
-                      <AnimatePresence>
-                        {showOthers && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.18 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="divide-y divide-gray-100 px-5 opacity-55">
-                              {otherItems.map((item) => (
-                                <WishlistItemRow
-                                  key={item.id}
-                                  item={item}
-                                  activeDayId={null}
-                                  distKm={undefined}
-                                  onInsert={handleInsert}
-                                  onRemove={() => removeFromWishlist(item.id)}
-                                  onCycleCategory={() => cycleCategory(item.id, item.category)}
-                                  onUpdateNote={(note) => updateWishlistItem(item.id, { note })}
-                                />
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  )}
-
+                <div className="divide-y divide-gray-100 px-5 pb-safe-bottom pb-8">
+                  {filtered.map((item) => (
+                    <WishlistItemRow
+                      key={item.id}
+                      item={item}
+                      activeDayId={activeDayId}
+                      onInsert={handleInsert}
+                      onRemove={() => removeFromWishlist(item.id)}
+                      onCycleCategory={() => cycleCategory(item.id, item.category)}
+                      onUpdateNote={(note) => updateWishlistItem(item.id, { note })}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -337,7 +243,6 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
 interface RowProps {
   item: WishlistItem;
   activeDayId: string | null;
-  distKm: number | undefined;
   onInsert: (item: WishlistItem) => void;
   onRemove: () => void;
   onCycleCategory: () => void;
@@ -345,7 +250,7 @@ interface RowProps {
 }
 
 function WishlistItemRow({
-  item, activeDayId, distKm,
+  item, activeDayId,
   onInsert, onRemove, onCycleCategory, onUpdateNote,
 }: RowProps) {
   const meta = CATEGORY_META[item.category];
@@ -363,11 +268,6 @@ function WishlistItemRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="text-sm font-medium text-gray-800 leading-tight truncate">{item.name}</p>
-            {distKm != null && (
-              <span className="flex-none text-[10px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                {formatDist(distKm)}
-              </span>
-            )}
           </div>
           <p className="text-[11px] text-gray-400 truncate mt-0.5">{item.address}</p>
         </div>

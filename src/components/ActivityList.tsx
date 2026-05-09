@@ -26,6 +26,7 @@ interface Props {
   isPreview: boolean;
   originPlace?: PlaceDetails;
   originTime?: string;
+  onOpenWishlist?: () => void;
 }
 
 const REGULAR_TYPES: ActivityType[] = ['STAY', 'MEAL', 'ACCOMMODATION'];
@@ -36,7 +37,7 @@ const CATEGORY_TO_TYPE: Record<WishlistCategory, ActivityType> = {
   BACKUP:     'STAY',
 };
 
-export function ActivityList({ dayId, activities, isPreview, originPlace, originTime }: Props) {
+export function ActivityList({ dayId, activities, isPreview, originPlace, originTime, onOpenWishlist }: Props) {
   const addActivity       = useTripStore((s) => s.addActivity);
   const insertActivity    = useTripStore((s) => s.insertActivity);
   const updateActivity    = useTripStore((s) => s.updateActivity);
@@ -334,6 +335,20 @@ export function ActivityList({ dayId, activities, isPreview, originPlace, origin
               </div>
               <span className="ml-auto text-blue-300 text-sm">+</span>
             </button>
+
+            {onOpenWishlist && (
+              <button
+                onClick={onOpenWishlist}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-gray-300 active:scale-[0.99] transition-all"
+              >
+                <span className="text-xl leading-none">✨</span>
+                <div className="text-left">
+                  <p className="text-sm font-medium text-gray-700">从灵感清单选择</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">一键加入已收藏的景点与餐厅</p>
+                </div>
+                <span className="ml-auto text-gray-300 text-sm">›</span>
+              </button>
+            )}
           </div>
         )}
       </div>
