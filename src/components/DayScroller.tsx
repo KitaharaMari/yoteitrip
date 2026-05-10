@@ -1,6 +1,7 @@
 'use client';
 
 import type { Day } from '@/types';
+import { useT } from '@/hooks/useT';
 
 interface Props {
   days:             Day[];
@@ -17,6 +18,8 @@ function shortDate(iso: string): string {
 }
 
 export function DayScroller({ days, activeDayId, onSelect, onAddDay, showOverview, onSelectOverview }: Props) {
+  const t = useT();
+
   return (
     <div className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm border-b border-gray-100">
       <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar">
@@ -31,7 +34,7 @@ export function DayScroller({ days, activeDayId, onSelect, onAddDay, showOvervie
           }`}
           style={showOverview ? { backgroundColor: '#47BB8E' } : undefined}
         >
-          总览
+          {t('trip.overview')}
         </button>
 
         {/* Divider */}

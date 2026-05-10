@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTripStore } from '@/store/useTripStore';
+import { useT } from '@/hooks/useT';
 import { useMapsLoaded } from './MapProvider';
 import { WishlistDrawer } from './WishlistDrawer';
 import { UserMenu } from './UserMenu';
@@ -25,20 +26,6 @@ const GRADIENTS = [
 function gradientFor(idx: number) {
   const [a, b] = GRADIENTS[idx % GRADIENTS.length];
   return `linear-gradient(135deg, ${a}, ${b})`;
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  const hours   = Math.floor(diff / 3_600_000);
-  const days    = Math.floor(diff / 86_400_000);
-  if (minutes < 2)  return '刚刚';
-  if (hours < 1)    return `${minutes}分钟前`;
-  if (hours < 24)   return `${hours}小时前`;
-  if (days === 1)   return '昨天';
-  if (days < 7)     return `${days}天前`;
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 // ── Fetch the first photo URL for a Google Places result ─────────────────────
@@ -63,6 +50,7 @@ function TripCard({
   const router          = useRouter();
   const setCurrentTrip  = useTripStore((s) => s.setCurrentTrip);
   const renameTrip      = useTripStore((s) => s.renameTrip);
+  const t               = useT();
 
   const [hovered, setHovered]     = useState(false);
   const [renaming, setRenaming]   = useState(false);
@@ -85,6 +73,21 @@ function TripCard({
   };
 
   const totalDays = trip.days.length;
+
+  // Relative time computed inside TripCard so it can use t()
+  const relativeTime = (iso: string): string => {
+    const diff    = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(diff / 60_000);
+    const hours   = Math.floor(diff / 3_600_000);
+    const days    = Math.floor(diff / 86_400_000);
+    if (minutes < 2)  return t('dashboard.justNow');
+    if (hours < 1)    return t('dashboard.minutesAgo', { n: minutes });
+    if (hours < 24)   return t('dashboard.hoursAgo', { n: hours });
+    if (days === 1)   return t('dashboard.yesterday');
+    if (days < 7)     return t('dashboard.daysAgo', { n: days });
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
 
   return (
     <motion.div
@@ -132,19 +135,19 @@ function TripCard({
                 onClick={(e) => { e.stopPropagation(); setRenaming(true); setHovered(false); }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-white/90 text-gray-800 rounded-xl text-[11px] font-medium hover:bg-white transition-colors shadow-sm"
               >
-                ✏️ 重命名
+                ✏️ {t('dashboard.rename')}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onChangeCover(trip); setHovered(false); }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-white/90 text-gray-700 rounded-xl text-[11px] font-medium hover:bg-white transition-colors shadow-sm"
               >
-                🖼️ 换封面
+                🖼️ {t('dashboard.changeCover')}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(trip); }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-white/90 text-red-600 rounded-xl text-[11px] font-medium hover:bg-white transition-colors shadow-sm"
               >
-                🗑️ 删除
+                🗑️ {t('dashboard.delete')}
               </button>
             </motion.div>
           )}
@@ -152,7 +155,7 @@ function TripCard({
 
         {/* Day count badge */}
         <span className="relative text-[11px] text-white/90 font-medium bg-black/20 px-2 py-0.5 rounded-full">
-          {totalDays} 天
+          {t('dashboard.days', { n: totalDays })}
         </span>
         <div className="relative ml-auto w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
           <span className="text-white text-xs">→</span>
@@ -191,6 +194,7 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
   const router       = useRouter();
   const createTrip   = useTripStore((s) => s.createTrip);
   const isMapsLoaded = useMapsLoaded();
+  const t            = useT();
 
   const [name, setName]                   = useState('');
   const [baseLocation, setBaseLocation]   = useState<BaseLocation | null>(null);
@@ -254,8 +258,8 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">新建行程</h3>
-          <p className="text-xs text-gray-400 mt-0.5">起个名字，并选择主要目标城市</p>
+          <h3 className="text-lg font-semibold text-gray-900">{t('newTrip.title')}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{t('newTrip.subtitle')}</p>
         </div>
 
         {/* Trip name */}
@@ -265,7 +269,7 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && canCreate) handleCreate(); if (e.key === 'Escape') onClose(); }}
-          placeholder="例：京都五日游"
+          placeholder={t('newTrip.namePlaceholder')}
           maxLength={40}
           className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-900 placeholder-gray-300 outline-none focus:border-gray-400 transition-colors"
         />
@@ -273,15 +277,15 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
         {/* Target city picker */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-gray-400">
-            目标城市 <span className="text-red-400">*</span>
-            <span className="text-gray-300 ml-1">— 用于搜索范围锚定</span>
+            {t('newTrip.cityLabel')} <span className="text-red-400">*</span>
+            <span className="text-gray-300 ml-1">{t('newTrip.cityAnchor')}</span>
           </label>
 
           {/* Always in DOM so Autocomplete binding persists; hidden when city selected */}
           <input
             ref={cityInputRef}
             type="text"
-            placeholder={isMapsLoaded ? '搜索城市或地区…' : '地图加载中…'}
+            placeholder={isMapsLoaded ? t('newTrip.cityPlaceholder') : t('newTrip.cityLoading')}
             disabled={!isMapsLoaded}
             onChange={() => { if (baseLocation) setBaseLocation(null); }}
             style={{ display: baseLocation ? 'none' : undefined }}
@@ -312,12 +316,12 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
                   <img src={coverPhotoUrl} alt="封面" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                     <span className="text-white/90 text-[11px] font-medium bg-black/30 px-2.5 py-1 rounded-full">
-                      🖼️ 封面预览
+                      🖼️ {t('newTrip.coverPreview')}
                     </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-[11px] text-gray-300 text-center py-1">该城市暂无封面图，将使用色块封面</p>
+                <p className="text-[11px] text-gray-300 text-center py-1">{t('newTrip.noCover')}</p>
               )}
             </div>
           )}
@@ -328,14 +332,14 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="flex-1 py-3 rounded-2xl text-sm text-gray-500 border border-gray-100 hover:border-gray-300 transition-colors"
           >
-            取消
+            {t('dashboard.cancel')}
           </button>
           <button
             onClick={handleCreate}
             disabled={!canCreate}
             className="flex-1 py-3 rounded-2xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 active:scale-[0.98] transition-all"
           >
-            创建行程
+            {t('newTrip.create')}
           </button>
         </div>
       </motion.div>
@@ -368,6 +372,7 @@ function compressImage(file: File, maxW = 960, maxH = 540, quality = 0.82): Prom
 // ── CoverPickerModal ──────────────────────────────────────────────────────────
 function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
   const setCoverPhoto = useTripStore((s) => s.setCoverPhoto);
+  const t             = useT();
 
   const [previewUrl, setPreviewUrl]     = useState<string | null>(trip.coverPhotoUrl ?? null);
   const [isDragging, setIsDragging]     = useState(false);
@@ -418,8 +423,8 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">更换封面</h3>
-          <p className="text-xs text-gray-400 mt-0.5">上传本地照片作为行程封面</p>
+          <h3 className="text-lg font-semibold text-gray-900">{t('cover.title')}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{t('cover.subtitle')}</p>
         </div>
 
         {/* Drop zone / preview */}
@@ -444,7 +449,7 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
               <img src={previewUrl} alt="封面预览" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/20 flex items-end justify-center pb-3">
                 <span className="text-white text-[11px] bg-black/40 px-3 py-1 rounded-full">
-                  点击或拖拽以重新选择
+                  {t('cover.reselect')}
                 </span>
               </div>
             </>
@@ -455,8 +460,8 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
               ) : (
                 <>
                   <span className="text-3xl leading-none opacity-30">🖼️</span>
-                  <span className="text-xs text-gray-400">点击上传 或 拖拽图片至此</span>
-                  <span className="text-[10px] text-gray-300">JPG · PNG · WEBP · HEIC</span>
+                  <span className="text-xs text-gray-400">{t('cover.clickOrDrag')}</span>
+                  <span className="text-[10px] text-gray-300">{t('cover.formats')}</span>
                 </>
               )}
             </div>
@@ -477,7 +482,7 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
             onClick={() => setPreviewUrl(null)}
             className="text-[11px] text-gray-400 hover:text-red-400 transition-colors -mt-1"
           >
-            移除封面，恢复色块
+            {t('cover.remove')}
           </button>
         )}
 
@@ -486,14 +491,14 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
             onClick={onClose}
             className="flex-1 py-3 rounded-2xl text-sm text-gray-500 border border-gray-100 hover:border-gray-300 transition-colors"
           >
-            取消
+            {t('dashboard.cancel')}
           </button>
           <button
             onClick={handleConfirm}
             disabled={isProcessing || !hasChanged}
             className="flex-1 py-3 rounded-2xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 active:scale-[0.98] transition-all"
           >
-            {isProcessing ? '压缩中…' : '确认'}
+            {isProcessing ? t('cover.processing') : t('cover.confirm')}
           </button>
         </div>
       </motion.div>
@@ -502,31 +507,17 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
 }
 
 // ── OnboardingModal ───────────────────────────────────────────────────────────
-const ONBOARDING_SLIDES = [
-  {
-    icon: '🧩',
-    title: '积木式行程规划',
-    desc: '景点、餐饮、住宿、交通——四类模块自由拼搭，日程结构一目了然，想改随时改。',
-  },
-  {
-    icon: '⏱️',
-    title: '实时通勤推算',
-    desc: '基于 Google Maps，自动计算相邻地点的路程时间，告别「看起来可行」的假日程。',
-  },
-  {
-    icon: '📋',
-    title: '备用方案一键切换',
-    desc: '为每个景点或餐厅添加备选地点，行程有变时一键切换 Plan B，不慌不乱。',
-  },
-  {
-    icon: '☁️',
-    title: '云端同步 & 一键分享',
-    desc: '登录账号后行程自动云端备份，随时生成分享链接，和朋友一起规划。',
-  },
-];
-
 function OnboardingModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [step, setStep] = useState(0);
+
+  const ONBOARDING_SLIDES = [
+    { icon: '🧩', title: t('onboarding.s1.title'), desc: t('onboarding.s1.desc') },
+    { icon: '⏱️', title: t('onboarding.s2.title'), desc: t('onboarding.s2.desc') },
+    { icon: '📋', title: t('onboarding.s3.title'), desc: t('onboarding.s3.desc') },
+    { icon: '☁️', title: t('onboarding.s4.title'), desc: t('onboarding.s4.desc') },
+  ];
+
   const isLast = step === ONBOARDING_SLIDES.length - 1;
   const slide  = ONBOARDING_SLIDES[step];
 
@@ -571,7 +562,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               onClick={onClose}
               className="text-xs text-gray-300 hover:text-gray-500 transition-colors"
             >
-              跳过
+              {t('onboarding.skip')}
             </button>
           </div>
 
@@ -614,7 +605,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
             onClick={() => { if (isLast) onClose(); else setStep((s) => s + 1); }}
             className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 active:scale-[0.98] transition-all"
           >
-            {isLast ? '开始规划 →' : '下一步'}
+            {isLast ? t('onboarding.start') : t('onboarding.next')}
           </button>
         </div>
       </motion.div>
@@ -628,6 +619,8 @@ function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -645,9 +638,9 @@ function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">确认删除？</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('dashboard.confirmDelete')}</h3>
           <p className="text-sm text-gray-500 mt-1.5">
-            《{trip.name}》将被永久删除，无法恢复。
+            {t('dashboard.confirmDeleteBody', { name: trip.name })}
           </p>
         </div>
         <div className="flex gap-2">
@@ -655,13 +648,13 @@ function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
             onClick={onCancel}
             className="flex-1 py-3 rounded-2xl text-sm text-gray-600 border border-gray-100 hover:border-gray-300 transition-colors"
           >
-            取消
+            {t('dashboard.cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="flex-1 py-3 rounded-2xl text-sm font-medium bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] transition-all"
           >
-            确认删除
+            {t('dashboard.confirmDeleteBtn')}
           </button>
         </div>
       </motion.div>
@@ -673,6 +666,7 @@ function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
 export function TripDashboard() {
   const trips      = useTripStore((s) => s.trips);
   const deleteTrip = useTripStore((s) => s.deleteTrip);
+  const t          = useT();
 
   const [showNewModal, setShowNewModal]         = useState(false);
   const [deletingTrip, setDeletingTrip]         = useState<Trip | null>(null);
@@ -718,12 +712,12 @@ export function TripDashboard() {
             </span>
           </div>
           <div className="flex items-end justify-between">
-            <h1 className="text-2xl font-bold" style={{ color: '#3D5568' }}>我的旅行</h1>
+            <h1 className="text-2xl font-bold" style={{ color: '#3D5568' }}>{t('dashboard.title')}</h1>
             <div className="flex items-center gap-2">
               <UserMenu onOpenAuth={() => setShowAuthModal(true)} />
               <button
                 onClick={() => setShowWishlist(true)}
-                title="灵感清单"
+                title={t('dashboard.wishlist')}
                 className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors shadow-sm"
               >
                 ✨
@@ -733,7 +727,7 @@ export function TripDashboard() {
                 className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-2xl text-sm font-medium hover:bg-gray-700 active:scale-95 transition-all shadow-sm"
               >
                 <span className="text-base leading-none">+</span>
-                新建行程
+                {t('dashboard.newTrip')}
               </button>
             </div>
           </div>
@@ -743,12 +737,12 @@ export function TripDashboard() {
         {trips.length === 0 ? (
           <div className="flex flex-col items-center py-20 gap-4 text-center">
             <span className="text-5xl">🗺️</span>
-            <p className="text-sm text-gray-400">还没有旅行计划</p>
+            <p className="text-sm text-gray-400">{t('dashboard.noTrips')}</p>
             <button
               onClick={() => setShowNewModal(true)}
               className="px-5 py-2.5 bg-gray-900 text-white rounded-2xl text-sm font-medium hover:bg-gray-700 transition-colors"
             >
-              + 开始规划
+              {t('dashboard.startPlanning')}
             </button>
           </div>
         ) : (
@@ -782,7 +776,7 @@ export function TripDashboard() {
               className="rounded-3xl border-2 border-dashed border-gray-200 h-[7.5rem] flex flex-col items-center justify-center gap-1.5 text-gray-300 hover:border-gray-400 hover:text-gray-400 active:scale-95 transition-all"
             >
               <span className="text-2xl leading-none">+</span>
-              <span className="text-[11px] font-medium">新建行程</span>
+              <span className="text-[11px] font-medium">{t('dashboard.ghostCard')}</span>
             </motion.button>
           </motion.div>
         )}

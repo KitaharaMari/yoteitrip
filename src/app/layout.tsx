@@ -4,6 +4,7 @@ import './globals.css';
 import { StoreHydration } from '@/components/StoreHydration';
 import { MapProvider } from '@/components/MapProvider';
 import { AuthProvider } from '@/components/AuthProvider';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 const nunito = Nunito({
   variable: '--font-nunito',
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <MapProvider>{children}</MapProvider>
           </AuthProvider>
+          <LanguageSwitcher />
         </StoreHydration>
       </body>
     </html>

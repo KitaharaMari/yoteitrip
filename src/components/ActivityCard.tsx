@@ -3,6 +3,7 @@
 import type { DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { Activity } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
+import { useT } from '@/hooks/useT';
 import { ACTIVITY_META } from '@/lib/constants';
 import { getOpenStatus } from '@/lib/openingHours';
 import { TimeInput } from './TimeInput';
@@ -56,6 +57,7 @@ export function ActivityCard({
   const currency       = useTripStore((s) => s.trip.currency ?? 'CAD');
   // Read the day's date for day-of-week aware opening-hours checks
   const dayDate        = useTripStore((s) => s.trip.days.find((d) => d.id === dayId)?.date);
+  const t              = useT();
 
   const meta           = ACTIVITY_META[activity.type];
   const isLongDistance = activity.type === 'LONG_DISTANCE';
@@ -131,7 +133,7 @@ export function ActivityCard({
               ? (isLongDistance ? 'text-blue-800' : 'text-gray-800')
               : 'text-gray-300'
           }`}>
-            {activity.place?.name ?? '点击搜索地点…'}
+            {activity.place?.name ?? t('card.searchPlaceholder')}
           </p>
           {activity.place?.address && (
             <p className="text-[10px] text-gray-400 truncate mt-0.5 leading-none">
@@ -221,13 +223,13 @@ export function ActivityCard({
           <div className="w-10 flex-none" />
           <div className="w-5 flex-none" />
           <div className="flex gap-1">
-            {(['STAY', 'MEAL', 'ACCOMMODATION'] as const).map((t) => {
-              const m      = ACTIVITY_META[t];
-              const active = t === activity.type;
+            {(['STAY', 'MEAL', 'ACCOMMODATION'] as const).map((tp) => {
+              const m      = ACTIVITY_META[tp];
+              const active = tp === activity.type;
               return (
                 <button
-                  key={t}
-                  onClick={() => { if (!active) updateActivity(dayId, activity.id, { type: t }); }}
+                  key={tp}
+                  onClick={() => { if (!active) updateActivity(dayId, activity.id, { type: tp }); }}
                   className={`flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-medium transition-colors ${
                     active
                       ? 'bg-gray-100 text-gray-700'
@@ -251,7 +253,7 @@ export function ActivityCard({
           <div className="w-5 flex-none" />
           <input
             type="text"
-            placeholder="添加备注…"
+            placeholder={t('card.notePlaceholder')}
             value={activity.description ?? ''}
             onChange={(e) => updateActivity(dayId, activity.id, { description: e.target.value })}
             className="flex-1 text-xs text-gray-400 bg-transparent outline-none placeholder-gray-200 min-w-0"

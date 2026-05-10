@@ -1,6 +1,7 @@
 'use client';
 
 import type { Day, Trip } from '@/types';
+import { useT } from '@/hooks/useT';
 
 const DEFAULT_CONSUMPTION = 8.0;
 
@@ -55,6 +56,7 @@ function shortDate(iso: string): string {
 }
 
 export function TripOverview({ trip }: { trip: Trip }) {
+  const t = useT();
   const tripCurrency = trip.currency ?? 'USD';
   const allStats = trip.days.map((d) => computeDayStats(d, tripCurrency));
 
@@ -70,9 +72,9 @@ export function TripOverview({ trip }: { trip: Trip }) {
       {/* ── Summary stats ── */}
       <div className="grid grid-cols-3 gap-2 mx-4 mt-4">
         {[
-          { label: '总天数',   value: `${trip.days.length} 天` },
-          { label: '总里程',   value: totalDrivingKm > 0 ? `${totalDrivingKm.toFixed(0)} km` : '—' },
-          { label: '行程地点', value: `${totalPlaces} 处` },
+          { label: t('overview.totalDays'),  value: `${trip.days.length} 天` },
+          { label: t('overview.totalKm'),    value: totalDrivingKm > 0 ? `${totalDrivingKm.toFixed(0)} km` : '—' },
+          { label: t('overview.places'),     value: `${totalPlaces} 处` },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-100 px-2 py-3 flex flex-col items-center gap-1 shadow-sm">
             <span className="text-lg font-bold text-gray-900 leading-none">{value}</span>
@@ -84,7 +86,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
       {/* ── Budget summary ── */}
       {totalBudget > 0 && (
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm flex items-center justify-between">
-          <span className="text-xs text-gray-500">预估总费用</span>
+          <span className="text-xs text-gray-500">{t('overview.budget')}</span>
           <span className="text-base font-bold text-gray-900 tabular-nums">
             {tripCurrency} {totalBudget.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
@@ -115,7 +117,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
               {/* Origin */}
               {day.originPlace && (
                 <p className="text-[11px] mt-1.5" style={{ color: '#47BB8E' }}>
-                  📍 {day.originPlace.name}
+                  📍 {t('overview.departure')} {day.originPlace.name}
                 </p>
               )}
 

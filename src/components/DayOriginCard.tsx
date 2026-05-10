@@ -1,6 +1,7 @@
 'use client';
 
 import type { PlaceDetails } from '@/types';
+import { useT } from '@/hooks/useT';
 import { TimeInput } from './TimeInput';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function DayOriginCard({ originPlace, originTime, onEditPlace, onUpdateTime }: Props) {
+  const t    = useT();
   const time = originTime ?? '08:00';
 
   return (
@@ -19,13 +21,13 @@ export function DayOriginCard({ originPlace, originTime, onEditPlace, onUpdateTi
       <span className="text-base w-5 text-center leading-none flex-none">🏠</span>
       <button onClick={onEditPlace} className="flex-1 min-w-0 text-left">
         <p className={`text-sm truncate leading-tight ${originPlace ? 'text-emerald-800' : 'text-gray-300'}`}>
-          {originPlace?.name ?? '点击设置出发地...'}
+          {originPlace?.name ?? t('origin.placeholder')}
         </p>
         {originPlace?.address && (
           <p className="text-[10px] text-gray-400 truncate mt-0.5">{originPlace.address}</p>
         )}
       </button>
-      <span className="flex-none text-[9px] uppercase tracking-wider text-emerald-500">出发</span>
+      <span className="flex-none text-[9px] uppercase tracking-wider text-emerald-500">{t('origin.label')}</span>
     </div>
   );
 }

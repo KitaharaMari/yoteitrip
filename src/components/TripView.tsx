@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTripStore } from '@/store/useTripStore';
+import { useT } from '@/hooks/useT';
 import { DayScroller } from './DayScroller';
 import { ActivityList } from './ActivityList';
 import { TripOverview } from './TripOverview';
@@ -13,6 +14,7 @@ export function TripView() {
   const trip      = useTripStore((s) => s.trip);
   const addDay    = useTripStore((s) => s.addDay);
   const updateDay = useTripStore((s) => s.updateDay);
+  const t         = useT();
 
   const [activeDayId, setActiveDayId]   = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(false);
@@ -69,7 +71,7 @@ export function TripView() {
               className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors mb-1 -ml-0.5"
             >
               <span>←</span>
-              <span>返回大厅</span>
+              <span>{t('trip.back')}</span>
             </Link>
             <h1 className="text-xl font-semibold text-gray-900">{trip.name}</h1>
           </div>
@@ -101,7 +103,7 @@ export function TripView() {
                 <button
                   key={m}
                   onClick={() => updateDay(activeDay.id, { travelMode: m })}
-                  title={m === 'TRANSIT' ? '当日公共交通' : '当日自驾'}
+                  title={m === 'TRANSIT' ? t('trip.transit') : t('trip.driving')}
                   className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${
                     (activeDay.travelMode ?? 'TRANSIT') === m
                       ? 'bg-white text-gray-700 shadow-sm font-medium'
@@ -142,7 +144,7 @@ export function TripView() {
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-gray-400">点击 + 开始规划第一天</p>
+            <p className="text-sm text-gray-400">{t('trip.empty')}</p>
           </div>
         )}
       </div>

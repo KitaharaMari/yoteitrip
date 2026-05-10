@@ -9,6 +9,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { LayoutGroup, motion } from 'framer-motion';
 import type { Activity, ActivityType, PlaceDetails, WishlistCategory, WishlistItem } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
+import { useT } from '@/hooks/useT';
 import { ACTIVITY_META } from '@/lib/constants';
 import { haversineKm, formatDist } from '@/lib/haversine';
 import { DayStatsBar } from './DayStatsBar';
@@ -48,6 +49,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
   const carSettings       = useTripStore((s) => s.trip.days.find((d) => d.id === dayId)?.carSettings);
   const dayDate           = useTripStore((s) => s.trip.days.find((d) => d.id === dayId)?.date);
   const baseLocation      = useTripStore((s) => s.trip.baseLocation);
+  const t                 = useT();
 
   const [editingId, setEditingId]         = useState<string | null>(null);
   const [editingOrigin, setEditingOrigin] = useState(false);
@@ -265,7 +267,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
           <div className="mx-4 mt-4 rounded-2xl border border-gray-100 overflow-hidden text-sm">
             {activityCost > 0 && (
               <div className="px-4 py-2.5 bg-gray-50 flex items-center justify-between">
-                <span className="text-xs text-gray-500">景点 &amp; 餐饮</span>
+                <span className="text-xs text-gray-500">{t('list.costAttractions')}</span>
                 <span className="tabular-nums text-gray-700">
                   {currency} {activityCost.toLocaleString()}
                 </span>
@@ -273,7 +275,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
             )}
             {transitCost > 0 && (
               <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs text-gray-500">🚌 公共交通票价</span>
+                <span className="text-xs text-gray-500">{t('list.costTransit')}</span>
                 <span className="tabular-nums text-gray-700">
                   {transitCurrencyLabel} {transitCost.toLocaleString()}
                 </span>
@@ -284,7 +286,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
               activityCost > 0 && transitCost > 0 ? 'bg-white border-t border-gray-100' : 'bg-gray-50'
             }`}>
               <span className="text-xs font-medium text-gray-600">
-                {activityCost > 0 && transitCost > 0 ? '当日合计' : '当天预估费用'}
+                {activityCost > 0 && transitCost > 0 ? t('list.costDailyTotal') : t('list.costDailyEst')}
               </span>
               <span className="font-semibold text-gray-900 tabular-nums">
                 {activityCost > 0 ? currency : transitCurrencyLabel} {(activityCost + transitCost).toLocaleString()}
@@ -303,7 +305,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
 
         {/* Add-module section */}
         <div className="px-4 pt-5 pb-8 flex flex-col gap-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">添加模块</p>
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">{t('list.addModule')}</p>
 
             <div className="grid grid-cols-3 gap-2">
               {REGULAR_TYPES.map((type) => {
@@ -324,8 +326,8 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
             >
               <span className="text-xl leading-none">🚌</span>
               <div className="text-left">
-                <p className="text-sm font-medium text-blue-800">城际移动</p>
-                <p className="text-[11px] text-blue-400 mt-0.5">渡轮 · 大巴 · 飞机 · 火车 · 自驾</p>
+                <p className="text-sm font-medium text-blue-800">{t('list.intercity')}</p>
+                <p className="text-[11px] text-blue-400 mt-0.5">{t('list.intercitySub')}</p>
               </div>
               <span className="ml-auto text-blue-300 text-sm">+</span>
             </button>
@@ -337,8 +339,8 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
               >
                 <span className="text-xl leading-none">✨</span>
                 <div className="text-left">
-                  <p className="text-sm font-medium text-gray-700">从灵感清单选择</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">一键加入已收藏的景点与餐厅</p>
+                  <p className="text-sm font-medium text-gray-700">{t('list.fromWishlist')}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{t('list.fromWishlistSub')}</p>
                 </div>
                 <span className="ml-auto text-gray-300 text-sm">›</span>
               </button>
