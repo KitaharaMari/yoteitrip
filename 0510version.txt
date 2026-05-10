@@ -1,0 +1,196 @@
+================================================================
+YoteiTrip — 版本快照
+记录日期：2026-05-10
+================================================================
+
+────────────────────────────────────────────────────────────────
+一、项目概况
+────────────────────────────────────────────────────────────────
+
+项目名称：YoteiTrip（予定 trip）
+线上地址：https://yoteitrip.vercel.app
+代码仓库：https://github.com/KitaharaMari/yoteitrip
+技术栈：Next.js 16 (App Router) · TypeScript · Zustand · Tailwind CSS
+部署平台：Vercel（CI/CD，push main 自动触发）
+
+品牌色：
+  主绿   #47BB8E
+  深蓝灰 #3D5568
+  底色   #F0F7F4（浅薄荷）
+字体：Nunito + PingFang SC / Microsoft YaHei UI
+
+
+────────────────────────────────────────────────────────────────
+二、核心功能现状（截至 0510）
+────────────────────────────────────────────────────────────────
+
+【行程规划核心】
+✅ 积木式日程模块：景点(STAY)、餐饮(MEAL)、住宿(ACCOMMODATION)、交通(TRANSPORT)、城际移动(LONG_DISTANCE)
+✅ 多天日程管理：Day 1~N 横向切换，右上角 + 动态增加天数
+✅ 活动拖拽排序（@dnd-kit）
+✅ 出发地卡片（每日起点）+ 出发时间设置
+✅ 日期选择 + 双向日期级联（改 Day1 日期 Day2 自动跟进，反之亦然）
+✅ 新 Day 自动继承前一天日期 +1
+✅ 行程总览 Tab：总天数 / 总里程 / 行程地点 / 预估总费用 + 逐日明细
+
+【Google Maps 集成】
+✅ Places Autocomplete 搜索地点
+✅ 搜索后追加 PlacesService.getDetails() 补全 editorial_summary、url、rating
+✅ 活动卡片展示 AI 评论摘要 + 星级 + ↗ 跳转谷歌地图（任何已选地点均显示，无评论时也有跳转按钮）
+✅ 跳转链接：优先用 Places API 返回的 url，回退 /maps/place/?q=place_id:ID
+
+【通勤计算】
+✅ 服务端代理 /api/transit（Routes API v2 优先，降级 Directions REST API）
+✅ 出发时间感知（基于活动结束时间 + 日期，过去时间自动推进 7 天倍数）
+✅ 步行模式：直线 < 5km 时自动计算，满足（<60min 或与公交/驾车时间差 ≤15min）显示 🚶 按钮
+✅ 三模式切换：🚌 公交 / 🚗 驾车 / 🚶 步行（条件显示）
+✅ 驾车油费估算（DayStatsBar，可调油耗和油价）
+✅ 通勤时间级联更新活动开始时间
+
+【费用汇总】
+✅ 景点/餐饮手动填写费用
+✅ 公共交通票价自动从 API 写入 + 保留原始货币符号（修复了 CAD 错标问题）
+✅ 当日合计：景点餐饮 + 公交票价 + 油费估算
+✅ 行程总预算汇总（总览页）
+
+【备用方案 Plan B】
+✅ 每个活动可添加多个备选地点
+✅ 一键切换 Plan A ↔ Plan B（FLIP 动画）
+✅ 新手引导中有介绍
+
+【灵感清单 Wishlist】
+✅ 收藏景点/餐厅/备选类地点
+✅ 从「添加模块」区域底部一键呼出
+✅ 加入行程（插入指定 Day）
+✅ 已去掉距离显示（定位不准，改为纯平铺列表）
+
+【天气】
+✅ DayWeatherBar：基于 Open-Meteo（免费无 Key）
+✅ 有日期 + 出发地坐标时自动显示当日天气 + 穿搭建议
+✅ 长途（>200km）显示目的地天气并对比提示
+
+【封面与行程卡片】
+✅ 新建行程时自动抓取谷歌城市封面照片
+✅ 可上传本地图片替换封面（Canvas 压缩至 960×540 JPEG 82%）
+✅ 行程卡片渐变色轮转（8 色，首色为品牌绿）
+
+【云同步 & 分享】
+✅ Firebase Auth：Google OAuth + 邮箱密码登录
+✅ Firestore 自动同步（2s 防抖）
+✅ 新用户上传本地数据，老用户加载云端，冲突提示 SyncConflictModal
+✅ 分享链接（sharedTrips 集合，公开可读，10 位随机 ID）
+✅ /share/[id] 只读预览 + 导入按钮
+✅ WebView 检测（微信/Instagram 内置浏览器），显示「请在 Safari/Chrome 打开」提示
+
+【导出】
+✅ 数据导出（Base64 编码字符串）
+✅ 数据导入（解码导入替换全部行程）
+✅ 分享长图 / PDF：输出总览页（封面渐变 + 统计行 + 逐日明细 + QR 码）
+✅ QR 码扫描可直接导入行程（slimForQr 精简大字段避免超限）
+
+【API Key 安全】
+✅ 双 Key 架构：
+   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY → 客户端（HTTP Referrer 限制）
+   SERVER_GOOGLE_MAPS_API_KEY      → 仅服务端（/api/transit、/api/staticmap）
+✅ Static Maps 通过服务端代理，Key 不暴露到浏览器
+
+【多语言】
+✅ 6 种语言：简体中文 / 繁體中文 / English / Français / Español / 日本語
+✅ 右下角语言切换按钮（全局固定，每页可见）
+✅ 语言偏好持久化到 localStorage
+✅ 覆盖：主页、行程页、总览、活动卡片、灵感清单、新手引导等
+
+【PWA & 移动端】
+✅ manifest.json（standalone 模式，可添加到主屏幕）
+✅ Safari appleWebApp 配置
+✅ Mobile-first 设计，最大宽度 480px 居中显示
+✅ Safe area 适配（pb-safe-bottom）
+
+【新手引导】
+✅ 首次访问自动弹出（localStorage 记录 yoteitrip-onboarded）
+✅ 4 张功能介绍卡片：积木规划 / 通勤推算 / 备用方案 / 云同步分享
+✅ 进度条动画 + 圆点导航 + 跳过按钮
+✅ 支持多语言
+
+
+────────────────────────────────────────────────────────────────
+三、已知问题 / 待完善
+────────────────────────────────────────────────────────────────
+
+【功能层面】
+- 天气模块与备用方案卡的定位：天气仍在（基于 Open-Meteo），但新手引导 slide 已替换为介绍备用方案；两者共存，未来可考虑天气模块开关
+- 步行通勤模式：仅用 JS SDK 计算，无服务端缓存，频繁刷新可能消耗 Maps API 配额
+- 多城市行程：目前 baseLocation 是单城市锚点，跨国/跨城行程的搜索范围感知较弱
+- 总览页费用汇总：transit 货币 label 取第一个有 transitFareCurrency 的活动，混合货币行程（如跨国）显示会不准
+- 离线支持：Vercel 部署为标准 SSR，无 Service Worker，断网时 API 功能失效
+- 图片存储：封面图以 Base64 存 localStorage / Firestore，大图可能导致存储超限（~5MB）
+
+【体验层面】
+- 搜索 Overlay 仅支持 Google Places 搜索，无手动输入坐标或地址解析
+- 活动卡片的「开放时间」状态（CLOSED/CLOSES_SOON）显示的是英文，需要多语言化
+- DayStatsBar（油费估算）未接入多语言
+
+【技术债】
+- Firebase App Hosting 不支持 Next.js 16，仍用 Vercel 部署（Firebase 配置文件保留备用）
+- Zustand persist 的 merge 策略：新增 Activity 字段（如 transitFareCurrency）在老数据中为 undefined，依赖运行时 effect 补写
+- ExportModal 中 TripSummaryCard 用 inline style（html2canvas 不识别 Tailwind），维护稍繁琐
+
+
+────────────────────────────────────────────────────────────────
+四、下一阶段可能方向（优先级仅供参考）
+────────────────────────────────────────────────────────────────
+
+【P1 — 体验补全】
+□ 活动开放时间状态多语言化（"Closed at this time" → t('hours.closed')）
+□ DayStatsBar（油费）多语言化
+□ 导出/分享图 多语言适配（TripSummaryCard 内的中文标签改用 t()）
+□ 行程协作编辑：多用户同时在线编辑同一行程（Firestore 实时监听）
+
+【P2 — 功能扩展】
+□ 行程模板市场：社区分享热门路线，一键克隆使用
+□ 预算货币统一化：允许用户选定行程货币，自动换算 transit fare
+□ 离线模式：Service Worker 缓存核心功能，断网仍可浏览和编辑
+□ 封面图云存储：Base64 迁移到 Firebase Storage，解决大图存储限制
+□ 城市天气周报：在总览页显示各天天气预报概览
+
+【P3 — 商业化探索】
+□ 高级版功能（云存储空间 / 行程数量上限 / 协作人数）
+□ 旅行社/KOL 行程推荐集成
+□ 酒店/机票比价嵌入（Affiliate）
+
+
+────────────────────────────────────────────────────────────────
+五、环境变量速查
+────────────────────────────────────────────────────────────────
+
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY   客户端地图/Places（HTTP Referrer 限制到 vercel 域名）
+SERVER_GOOGLE_MAPS_API_KEY        服务端 Routes/Directions/StaticMaps（不对外暴露）
+NEXT_PUBLIC_FIREBASE_API_KEY      Firebase 客户端配置（6 个 FIREBASE_ 变量）
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID   yoteitrip
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
+
+
+────────────────────────────────────────────────────────────────
+六、近期主要提交记录（最近 30 次）
+────────────────────────────────────────────────────────────────
+
+cd92958  feat: 多语言支持 (zh-CN/TW, en, fr, es, ja)
+74db236  fix: SearchOverlay 追加 getDetails 补全地点信息；ActivityCard ↗ 链接永远可见
+93af97a  feat: 通勤连接器加入步行模式（<5km 自动计算，满足条件显示 🚶 按钮）
+92084b6  feat: 行程总览 Tab；彻底移除预览模式；导出输出总览长图
+d25500d  fix: OriginConnector 缺少 transitFareCurrency 导致 CAD 回退
+c3947d4  feat: Wishlist 按钮移至添加模块区；去掉距离显示
+a2c4621  feat: 新手引导 slide 3 从天气改为介绍备用方案
+f5273e2  revert: 还原备用方案卡替换天气的操作（方向调整）
+6272078  fix: 保留 transitFareCurrency，日汇总货币显示本地货币而非 CAD
+1d64b8c  feat: 首次访问新手引导 Modal（4 张功能卡）
+f152738  feat: 天气栏 → 备用方案准备卡（后被还原）
+c21fbde  fix: 日历图标移动端被遮挡；WebView 登录警告
+6da6734  fix: 解决 Autocomplete 对部分地点无法返回 url/editorial 的问题
+
+================================================================
+文档生成于 2026-05-10 · YoteiTrip dev
+================================================================
