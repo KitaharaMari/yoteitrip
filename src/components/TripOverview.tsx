@@ -57,7 +57,10 @@ function shortDate(iso: string): string {
 
 export function TripOverview({ trip }: { trip: Trip }) {
   const t = useT();
-  const tripCurrency = trip.currency ?? 'USD';
+  const detectedCurrency = trip.days
+    .flatMap((d) => d.activities.filter((a) => !a.isBackup))
+    .find((a) => a.transitFareCurrency)?.transitFareCurrency;
+  const tripCurrency = trip.currency ?? detectedCurrency ?? 'USD';
   const allStats = trip.days.map((d) => computeDayStats(d, tripCurrency));
 
   const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
