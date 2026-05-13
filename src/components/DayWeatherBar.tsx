@@ -136,7 +136,13 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
     );
   }
 
-  if (!originWeather) return null;
+  if (!originWeather) {
+    return (
+      <div className="mb-1.5 px-4 py-2.5 rounded-2xl bg-sky-50 text-[11px] text-sky-400">
+        暂无天气情报
+      </div>
+    );
+  }
 
   // Long-distance destination alerts
   const hasDestWeather = longDistance && destWeather !== 'loading' && destWeather !== null;

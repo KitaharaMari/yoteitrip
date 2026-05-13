@@ -100,11 +100,15 @@ export async function fetchWeather(
     const d = json.daily;
     if (!d?.time?.length) return null;
 
+    const tempMax = d.temperature_2m_max?.[0];
+    const tempMin = d.temperature_2m_min?.[0];
+    if (tempMax == null || tempMin == null) return null;
+
     const code = d.weathercode?.[0] ?? 0;
     const [emoji, description] = decodeWMO(code);
     return {
-      tempMax:     Math.round(d.temperature_2m_max?.[0] ?? 0),
-      tempMin:     Math.round(d.temperature_2m_min?.[0] ?? 0),
+      tempMax:     Math.round(tempMax),
+      tempMin:     Math.round(tempMin),
       weatherCode: code,
       precipSum:   d.precipitation_sum?.[0] ?? 0,
       description,
