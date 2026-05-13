@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTripStore } from '@/store/useTripStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { saveCloudData } from '@/lib/firestore';
 import { useT } from '@/hooks/useT';
 import { DayScroller } from './DayScroller';
 import { ActivityList } from './ActivityList';
@@ -11,15 +13,18 @@ import { ExportModal } from './ExportModal';
 import { WishlistDrawer } from './WishlistDrawer';
 
 export function TripView() {
-  const trip      = useTripStore((s) => s.trip);
-  const addDay    = useTripStore((s) => s.addDay);
-  const updateDay = useTripStore((s) => s.updateDay);
-  const t         = useT();
+  const trip             = useTripStore((s) => s.trip);
+  const addDay           = useTripStore((s) => s.addDay);
+  const updateDay        = useTripStore((s) => s.updateDay);
+  const setLastManualSave = useTripStore((s) => s.setLastManualSave);
+  const user             = useAuthStore((s) => s.user);
+  const t                = useT();
 
   const [activeDayId, setActiveDayId]   = useState<string | null>(null);
   const [showOverview, setShowOverview] = useState(false);
   const [showExport, setShowExport]     = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
+  const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const activeDay = trip.days.find((d) => d.id === activeDayId) ?? trip.days[0] ?? null;
 
@@ -47,6 +52,25 @@ export function TripView() {
     activeDay?.id,
     prevDayLastAccomPlaceId,
   ]);
+
+  const handleManualSave = async () => {
+    if (!user || saveState === 'saving') return;
+    setSaveState('saving');
+    const { trips, currentTripId, wishlist } = useTripStore.getState();
+    const now = new Date().toISOString();
+    try {
+      await saveCloudData(user.uid, {
+        trips, currentTripId, wishlist,
+        savedAt: now,
+        manualSavedAt: now,
+      });
+      setLastManualSave(now);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2500);
+    } catch {
+      setSaveState('idle');
+    }
+  };
 
   const handleAddDay = () => {
     addDay();
@@ -76,6 +100,22 @@ export function TripView() {
             <h1 className="text-xl font-semibold text-gray-900">{trip.name}</h1>
           </div>
           <div className="flex items-center gap-1 pt-1">
+            {user && (
+              <button
+                onClick={handleManualSave}
+                disabled={saveState === 'saving'}
+                title={saveState === 'saved' ? '已保存' : '保存到云端'}
+                className={`w-9 h-9 rounded-full border flex items-center justify-center text-sm transition-all ${
+                  saveState === 'saved'
+                    ? 'bg-green-50 border-green-200 text-green-500'
+                    : saveState === 'saving'
+                    ? 'bg-gray-50 border-gray-100 text-gray-300'
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
+                }`}
+              >
+                {saveState === 'saved' ? '✓' : saveState === 'saving' ? '…' : '💾'}
+              </button>
+            )}
             <button
               onClick={() => setShowExport(true)}
               title="数据 & 分享"

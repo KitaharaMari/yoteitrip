@@ -38,6 +38,10 @@ interface TripState {
   addToWishlist: (item: Omit<WishlistItem, 'id'>) => void;
   removeFromWishlist: (id: string) => void;
   updateWishlistItem: (id: string, updates: Partial<Omit<WishlistItem, 'id'>>) => void;
+
+  // ── Manual save ───────────────────────────────────────────────────────────
+  lastManualSave: string | null;  // ISO timestamp of last explicit save; persisted
+  setLastManualSave: (ts: string) => void;
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -97,10 +101,11 @@ const INITIAL_TRIP = createTripObject('My Trip');
 export const useTripStore = create<TripState>()(
   persist(
     (set) => ({
-      trips:         [INITIAL_TRIP],
-      currentTripId: INITIAL_TRIP.id,
-      trip:          INITIAL_TRIP,
-      wishlist:      [],
+      trips:          [INITIAL_TRIP],
+      currentTripId:  INITIAL_TRIP.id,
+      trip:           INITIAL_TRIP,
+      wishlist:       [],
+      lastManualSave: null,
 
       // ── Trip management ────────────────────────────────────────────────────
       createTrip: (title, baseLocation, coverPhotoUrl) => {
@@ -400,6 +405,8 @@ export const useTripStore = create<TripState>()(
         set((s) => ({
           wishlist: s.wishlist.map((i) => (i.id === id ? { ...i, ...updates } : i)),
         })),
+
+      setLastManualSave: (ts) => set({ lastManualSave: ts }),
     }),
     {
       name: 'yoteitrip-trip',

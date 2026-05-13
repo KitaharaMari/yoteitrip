@@ -4,10 +4,11 @@ import { getFirebaseApp } from './firebase';
 import type { Trip, WishlistItem } from '@/types';
 
 export interface CloudData {
-  trips:         Trip[];
-  currentTripId: string | null;
-  wishlist:      WishlistItem[];
-  savedAt:       string;
+  trips:          Trip[];
+  currentTripId:  string | null;
+  wishlist:       WishlistItem[];
+  savedAt:        string;
+  manualSavedAt?: string;  // set only by explicit user save — takes priority over auto-sync
 }
 
 function db() {
