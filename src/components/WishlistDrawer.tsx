@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ActivityType, BaseLocation, PlaceDetails, WishlistCategory, WishlistItem } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { saveCloudData } from '@/lib/firestore';
 import { useT } from '@/hooks/useT';
 import { SearchOverlay } from './SearchOverlay';
 
@@ -27,16 +29,37 @@ interface Props {
 }
 
 export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: Props) {
-  const wishlist           = useTripStore((s) => s.wishlist);
-  const addToWishlist      = useTripStore((s) => s.addToWishlist);
-  const removeFromWishlist = useTripStore((s) => s.removeFromWishlist);
-  const updateWishlistItem = useTripStore((s) => s.updateWishlistItem);
-  const insertActivity     = useTripStore((s) => s.insertActivity);
-  const t                  = useT();
+  const wishlist            = useTripStore((s) => s.wishlist);
+  const addToWishlist       = useTripStore((s) => s.addToWishlist);
+  const removeFromWishlist  = useTripStore((s) => s.removeFromWishlist);
+  const updateWishlistItem  = useTripStore((s) => s.updateWishlistItem);
+  const insertActivity      = useTripStore((s) => s.insertActivity);
+  const setLastManualSave   = useTripStore((s) => s.setLastManualSave);
+  const user                = useAuthStore((s) => s.user);
+  const t                   = useT();
 
   const [isSearching, setIsSearching]   = useState(false);
   const [filter, setFilter]             = useState<FilterOption>('ALL');
   const [pendingPlace, setPendingPlace] = useState<PlaceDetails | null>(null);
+  const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  const handleSave = async () => {
+    if (!user || saveState === 'saving') return;
+    setSaveState('saving');
+    const { trips, currentTripId, wishlist: w } = useTripStore.getState();
+    const now = new Date().toISOString();
+    try {
+      await saveCloudData(user.uid, {
+        trips, currentTripId, wishlist: w,
+        savedAt: now, manualSavedAt: now,
+      });
+      setLastManualSave(now);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2500);
+    } catch {
+      setSaveState('idle');
+    }
+  };
 
   const handlePlaceSelect = (place: PlaceDetails) => {
     setIsSearching(false);   // close SearchOverlay first so drawer is visible
@@ -111,6 +134,22 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
                 >
                   {t('wishlist.addPlace')}
                 </button>
+                {user && (
+                  <button
+                    onClick={handleSave}
+                    disabled={saveState === 'saving'}
+                    title="保存种草名单到云端"
+                    className={`w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all ${
+                      saveState === 'saved'
+                        ? 'bg-green-50 text-green-500'
+                        : saveState === 'saving'
+                        ? 'bg-gray-50 text-gray-300'
+                        : 'text-gray-400 hover:bg-gray-100'
+                    }`}
+                  >
+                    {saveState === 'saved' ? '✓' : saveState === 'saving' ? '…' : '💾'}
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   aria-label="关闭"

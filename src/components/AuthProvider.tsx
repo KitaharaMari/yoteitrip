@@ -10,11 +10,30 @@ import { useTripStore } from '@/store/useTripStore';
 import { useFirestoreSync } from '@/hooks/useFirestoreSync';
 import { SyncConflictModal } from './SyncConflictModal';
 
+/** Returns true if the local store has any user-generated content (trips OR wishlist). */
 function hasLocalContent(): boolean {
-  const { trips } = useTripStore.getState();
-  return trips.some((t) =>
-    t.days.some((d) => d.activities.length > 0 || !!d.originPlace),
+  const { trips, wishlist } = useTripStore.getState();
+  return (
+    wishlist.length > 0 ||
+    trips.some((t) => t.days.some((d) => d.activities.length > 0 || !!d.originPlace))
   );
+}
+
+/** Returns true if the cloud snapshot contains any user-generated content. */
+function cloudHasAnyContent(cloud: CloudData): boolean {
+  return (
+    (cloud.wishlist?.length ?? 0) > 0 ||
+    cloud.trips.some((t) => t.days.some((d) => d.activities.length > 0 || !!d.originPlace))
+  );
+}
+
+/** Merge two wishlists by placeId — no item is lost from either side. */
+function mergeWishlists(
+  primary: CloudData['wishlist'],
+  secondary: CloudData['wishlist'],
+): CloudData['wishlist'] {
+  const seen = new Set(primary.map((i) => i.placeId));
+  return [...primary, ...secondary.filter((i) => !seen.has(i.placeId))];
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -22,14 +41,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setAuthReady  = useAuthStore((s) => s.setAuthReady);
   const setSyncReady  = useAuthStore((s) => s.setSyncReady);
   const loadFromCloud = useTripStore((s) => s.loadFromCloud);
+  const setWishlist   = useTripStore((s) => s.setWishlist);
 
   const [conflict, setConflict] = useState<{
-    cloud:      CloudData;
-    localCount: number;
-    uid:        string;
+    cloud:             CloudData;
+    localTripCount:    number;
+    localWishlistCount: number;
+    uid:               string;
   } | null>(null);
 
-  // Auto-save hook — only fires after syncReady = true (set below)
   useFirestoreSync();
 
   useEffect(() => {
@@ -45,19 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthReady(true);
 
       if (!user) {
-        // Not logged in — local mode, auto-sync not needed
         setSyncReady(true);
         return;
       }
 
       const cloud    = await loadCloudData(user.uid);
       const hasLocal = hasLocalContent();
-      const { trips: localTrips, currentTripId, wishlist, lastManualSave } = useTripStore.getState();
+      const { trips: localTrips, currentTripId, wishlist: localWishlist, lastManualSave } = useTripStore.getState();
 
       if (!cloud) {
-        // No cloud record yet — upload local data and start syncing
         await saveCloudData(user.uid, {
-          trips: localTrips, currentTripId, wishlist,
+          trips: localTrips, currentTripId, wishlist: localWishlist,
           savedAt: new Date().toISOString(),
           manualSavedAt: lastManualSave ?? undefined,
         });
@@ -66,17 +84,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ── Manual-save priority ────────────────────────────────────────────────
-      // If either side has an explicit save, the newer one wins without a
-      // conflict modal. This is the "Save" button's guarantee.
       const cloudManualTs = cloud.manualSavedAt ? new Date(cloud.manualSavedAt).getTime() : 0;
       const localManualTs = lastManualSave       ? new Date(lastManualSave).getTime()       : 0;
 
       if (cloudManualTs > 0 || localManualTs > 0) {
         if (cloudManualTs >= localManualTs) {
-          loadFromCloud(cloud);
+          // Cloud is the authoritative save — load it, then merge in any local-only wishlist items
+          const merged = mergeWishlists(cloud.wishlist ?? [], localWishlist);
+          loadFromCloud({ ...cloud, wishlist: merged });
         } else {
+          // Local is newer — upload, merging any cloud-only wishlist items
+          const merged = mergeWishlists(localWishlist, cloud.wishlist ?? []);
+          setWishlist(merged);
           await saveCloudData(user.uid, {
-            trips: localTrips, currentTripId, wishlist,
+            trips: localTrips, currentTripId, wishlist: merged,
             savedAt: new Date().toISOString(),
             manualSavedAt: lastManualSave ?? undefined,
           });
@@ -86,20 +107,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ── Content-based fallback ──────────────────────────────────────────────
-      const cloudHasContent = cloud.trips.some((t) =>
-        t.days.some((d) => d.activities.length > 0 || !!d.originPlace),
-      );
+      const cloudHasContent = cloudHasAnyContent(cloud);
 
       if (cloudHasContent && hasLocal) {
-        // Both sides have real data — let user choose (syncReady set on choice)
-        setConflict({ cloud, localCount: localTrips.length, uid: user.uid });
+        setConflict({
+          cloud,
+          localTripCount:    localTrips.length,
+          localWishlistCount: localWishlist.length,
+          uid:               user.uid,
+        });
       } else if (cloudHasContent) {
+        // Cloud has data, local is empty — load cloud (no local items to preserve)
         loadFromCloud(cloud);
         setSyncReady(true);
       } else if (hasLocal) {
-        // Cloud is empty but local has data — upload local, don't overwrite it
+        // Local has data, cloud is empty — upload local
         await saveCloudData(user.uid, {
-          trips: localTrips, currentTripId, wishlist,
+          trips: localTrips, currentTripId, wishlist: localWishlist,
           savedAt: new Date().toISOString(),
         });
         setSyncReady(true);
@@ -109,20 +133,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return unsub;
-  }, [setUser, setAuthReady, setSyncReady, loadFromCloud]);
+  }, [setUser, setAuthReady, setSyncReady, loadFromCloud, setWishlist]);
 
   const handleUseCloud = () => {
     if (!conflict) return;
-    loadFromCloud(conflict.cloud);
+    const { wishlist: localWishlist } = useTripStore.getState();
+    // Use cloud trips but merge both wishlists so nothing is lost
+    const merged = mergeWishlists(conflict.cloud.wishlist ?? [], localWishlist);
+    loadFromCloud({ ...conflict.cloud, wishlist: merged });
     setSyncReady(true);
     setConflict(null);
   };
 
   const handleUseLocal = async () => {
     if (!conflict) return;
-    const { trips, currentTripId, wishlist } = useTripStore.getState();
+    const { trips, currentTripId, wishlist: localWishlist } = useTripStore.getState();
+    // Keep local trips but merge both wishlists so nothing is lost
+    const merged = mergeWishlists(localWishlist, conflict.cloud.wishlist ?? []);
+    setWishlist(merged);
     await saveCloudData(conflict.uid, {
-      trips, currentTripId, wishlist,
+      trips, currentTripId, wishlist: merged,
       savedAt: new Date().toISOString(),
     });
     setSyncReady(true);
@@ -136,7 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         {conflict && (
           <SyncConflictModal
             cloudData={conflict.cloud}
-            localTrips={conflict.localCount}
+            localTripCount={conflict.localTripCount}
+            localWishlistCount={conflict.localWishlistCount}
             onUseCloud={handleUseCloud}
             onUseLocal={handleUseLocal}
           />

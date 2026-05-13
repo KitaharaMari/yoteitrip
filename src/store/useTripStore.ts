@@ -43,6 +43,7 @@ interface TripState {
   // ── Manual save ───────────────────────────────────────────────────────────
   lastManualSave: string | null;  // ISO timestamp of last explicit save; persisted
   setLastManualSave: (ts: string) => void;
+  setWishlist: (items: WishlistItem[]) => void;
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -417,6 +418,7 @@ export const useTripStore = create<TripState>()(
         })),
 
       setLastManualSave: (ts) => set({ lastManualSave: ts }),
+      setWishlist: (items) => set({ wishlist: items }),
     }),
     {
       name: 'yoteitrip-trip',

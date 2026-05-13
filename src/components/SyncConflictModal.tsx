@@ -4,13 +4,18 @@ import { motion } from 'framer-motion';
 import type { CloudData } from '@/lib/firestore';
 
 interface Props {
-  cloudData:   CloudData;
-  localTrips:  number;   // count of local trips for display
-  onUseCloud:  () => void;
-  onUseLocal:  () => void;
+  cloudData:          CloudData;
+  localTripCount:     number;
+  localWishlistCount: number;
+  onUseCloud:         () => void;
+  onUseLocal:         () => void;
 }
 
-export function SyncConflictModal({ cloudData, localTrips, onUseCloud, onUseLocal }: Props) {
+export function SyncConflictModal({
+  cloudData, localTripCount, localWishlistCount, onUseCloud, onUseLocal,
+}: Props) {
+  const cloudWishlistCount = cloudData.wishlist?.length ?? 0;
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -25,7 +30,10 @@ export function SyncConflictModal({ cloudData, localTrips, onUseCloud, onUseLoca
           <span className="text-3xl">☁️</span>
           <h3 className="text-base font-semibold text-gray-900 mt-2">发现云端数据</h3>
           <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-            此账号的云端已有行程，与本机游客数据不同。<br />请选择保留哪份数据。
+            此账号的云端已有行程，与本机数据不同。<br />请选择保留哪份行程数据。
+          </p>
+          <p className="text-[11px] text-emerald-500 mt-1.5">
+            ✓ 两边的种草名单会自动合并，不会丢失
           </p>
         </div>
 
@@ -36,9 +44,11 @@ export function SyncConflictModal({ cloudData, localTrips, onUseCloud, onUseLoca
             className="w-full px-4 py-3.5 rounded-2xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 active:scale-[0.98] transition-all text-left flex justify-between items-center"
           >
             <div>
-              <p>使用云端数据</p>
+              <p>使用云端行程</p>
               <p className="text-[11px] text-gray-400 mt-0.5 font-normal">
-                {cloudData.trips.length} 个行程 · 上次同步 {cloudData.savedAt ? new Date(cloudData.savedAt).toLocaleDateString('zh-CN') : '未知'}
+                {cloudData.trips.length} 个行程
+                {cloudWishlistCount > 0 && ` · ${cloudWishlistCount} 个种草`}
+                {' · '}上次同步 {cloudData.savedAt ? new Date(cloudData.savedAt).toLocaleDateString('zh-CN') : '未知'}
               </p>
             </div>
             <span className="text-gray-400 text-lg">☁️</span>
@@ -50,9 +60,11 @@ export function SyncConflictModal({ cloudData, localTrips, onUseCloud, onUseLoca
             className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-gray-400 active:scale-[0.98] transition-all text-left flex justify-between items-center"
           >
             <div>
-              <p>保留本机数据并上传</p>
+              <p>保留本机行程并上传</p>
               <p className="text-[11px] text-gray-400 mt-0.5 font-normal">
-                {localTrips} 个本地行程 · 覆盖云端
+                {localTripCount} 个本地行程
+                {localWishlistCount > 0 && ` · ${localWishlistCount} 个种草`}
+                {' · '}覆盖云端行程
               </p>
             </div>
             <span className="text-gray-400 text-lg">📱</span>
