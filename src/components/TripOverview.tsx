@@ -57,11 +57,10 @@ function shortDate(iso: string): string {
 
 export function TripOverview({ trip }: { trip: Trip }) {
   const t = useT();
-  const detectedCurrency = trip.days
-    .flatMap((d) => d.activities.filter((a) => !a.isBackup))
-    .find((a) => a.transitFareCurrency)?.transitFareCurrency;
-  const tripCurrency = trip.currency ?? detectedCurrency ?? 'USD';
+  const tripCurrency = trip.currency ?? 'USD';
   const allStats = trip.days.map((d) => computeDayStats(d, tripCurrency));
+  // Prefer transit-fare currency (already correctly extracted per-day) over the trip default
+  const overallCurrency = allStats.find((s) => s.currency !== tripCurrency)?.currency ?? tripCurrency;
 
   const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
   const totalBudget    = allStats.reduce((s, st) => s + st.totalCost, 0);
@@ -91,7 +90,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm flex items-center justify-between">
           <span className="text-xs text-gray-500">{t('overview.budget')}</span>
           <span className="text-base font-bold text-gray-900 tabular-nums">
-            {tripCurrency} {totalBudget.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {overallCurrency} {totalBudget.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         </div>
       )}
