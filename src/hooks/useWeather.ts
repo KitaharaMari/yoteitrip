@@ -40,3 +40,52 @@ export function useWeather(
 
   return result;
 }
+
+export interface WeatherMapItem {
+  key:  string;
+  lat:  number;
+  lng:  number;
+  date: string;
+}
+
+/**
+ * Fetches weather for a variable-length list of locations.
+ * Safe to call with an empty array — returns {} immediately.
+ * Uses the same module-level cache as useWeather.
+ */
+export function useWeatherMap(
+  items: WeatherMapItem[],
+): Record<string, WeatherData | null> {
+  const [results, setResults] = useState<Record<string, WeatherData | null>>(() => {
+    const init: Record<string, WeatherData | null> = {};
+    for (const item of items) {
+      const k = cacheKey(item.lat, item.lng, item.date);
+      if (cache.has(k)) init[item.key] = cache.get(k) ?? null;
+    }
+    return init;
+  });
+
+  // Serialize into a stable string so useEffect only fires when items truly change
+  const depsKey = items
+    .map((i) => `${i.key}:${i.lat.toFixed(3)},${i.lng.toFixed(3)},${i.date}`)
+    .join('|');
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    for (const item of items) {
+      const k = cacheKey(item.lat, item.lng, item.date);
+      if (cache.has(k)) {
+        const cached = cache.get(k) ?? null;
+        setResults((prev) => ({ ...prev, [item.key]: cached }));
+        continue;
+      }
+      fetchWeather(item.lat, item.lng, item.date).then((data) => {
+        cache.set(k, data);
+        setResults((prev) => ({ ...prev, [item.key]: data }));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depsKey]);
+
+  return results;
+}
