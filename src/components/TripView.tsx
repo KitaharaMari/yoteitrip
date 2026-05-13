@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTripStore } from '@/store/useTripStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { saveCloudData } from '@/lib/firestore';
+import { CURRENCIES } from '@/lib/constants';
 import { useT } from '@/hooks/useT';
 import { DayScroller } from './DayScroller';
 import { ActivityList } from './ActivityList';
@@ -13,11 +14,12 @@ import { ExportModal } from './ExportModal';
 import { WishlistDrawer } from './WishlistDrawer';
 
 export function TripView() {
-  const trip             = useTripStore((s) => s.trip);
-  const addDay           = useTripStore((s) => s.addDay);
-  const updateDay        = useTripStore((s) => s.updateDay);
+  const trip              = useTripStore((s) => s.trip);
+  const addDay            = useTripStore((s) => s.addDay);
+  const updateDay         = useTripStore((s) => s.updateDay);
+  const setTripCurrency   = useTripStore((s) => s.setTripCurrency);
   const setLastManualSave = useTripStore((s) => s.setLastManualSave);
-  const user             = useAuthStore((s) => s.user);
+  const user              = useAuthStore((s) => s.user);
   const t                = useT();
 
   const [activeDayId, setActiveDayId]   = useState<string | null>(null);
@@ -98,6 +100,15 @@ export function TripView() {
               <span>{t('trip.back')}</span>
             </Link>
             <h1 className="text-xl font-semibold text-gray-900">{trip.name}</h1>
+            <select
+              value={trip.currency ?? 'CAD'}
+              onChange={(e) => setTripCurrency(e.target.value)}
+              className="mt-1 text-[11px] text-gray-500 bg-gray-100 rounded-full px-2.5 py-0.5 outline-none cursor-pointer hover:bg-gray-200 transition-colors"
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.code}</option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-1 pt-1">
             {user && (

@@ -102,10 +102,10 @@ async function captureAndExportPdf(el: HTMLElement, filename: string): Promise<v
 // ── TripSummaryCard — off-screen capture target ───────────────────────────────
 const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: string | null }>(
   function TripSummaryCard({ trip, qrDataUrl }, ref) {
-    const tripCurrency = trip.currency ?? 'USD';
-    const allStats = trip.days.map((d) => computeDayStats(d, tripCurrency));
+    const tripCurrency   = trip.currency ?? 'USD';
+    const allStats       = trip.days.map((d) => computeDayStats(d, tripCurrency));
     const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
-    const totalBudget    = allStats.reduce((s, st) => s + st.totalCost, 0);
+    const totalUserCost  = allStats.reduce((s, st) => s + st.totalCost, 0);
     const totalPlaces    = trip.days.flatMap((d) => d.activities.filter((a) => !a.isBackup && a.place?.name)).length;
 
     const shortDate = (iso: string) => {
@@ -152,7 +152,7 @@ const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: stri
             { icon: '📅', label: '总天数',   value: `${trip.days.length} 天` },
             { icon: '🚗', label: '总里程',   value: totalDrivingKm > 0 ? `${totalDrivingKm.toFixed(0)} km` : '—' },
             { icon: '📌', label: '行程地点', value: `${totalPlaces} 处` },
-            ...(totalBudget > 0 ? [{ icon: '💰', label: '预估费用', value: `${tripCurrency} ${totalBudget.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }] : []),
+            ...(totalUserCost > 0 ? [{ icon: '💰', label: '预估费用', value: `${tripCurrency} ${totalUserCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` }] : []),
           ].map(({ icon, label, value }) => (
             <div key={label} style={{ flex: 1, padding: '14px 10px', textAlign: 'center', borderRight: '1px solid #f0f0f0' }}>
               <div style={{ fontSize: 16 }}>{icon}</div>
@@ -175,7 +175,7 @@ const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: stri
                   </div>
                   {st.totalCost > 0 && (
                     <span style={{ fontSize: 12, fontWeight: 600, color: '#3D5568', fontVariantNumeric: 'tabular-nums' }}>
-                      {st.currency} {st.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {tripCurrency} {st.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   )}
                 </div>
@@ -188,18 +188,18 @@ const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: stri
                       {st.places.join(' · ')}
                     </p>
                   )}
-                  {(st.drivingKm >= 50 || st.transitCost > 0) && (
-                    <div style={{ display: 'flex', gap: 12, marginTop: 6, paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
+                  {(st.drivingKm >= 50 || st.transitGroups.length > 0) && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 6, paddingTop: 6, borderTop: '1px solid #f3f4f6', flexWrap: 'wrap' }}>
                       {st.drivingKm >= 50 && (
                         <span style={{ fontSize: 10, color: '#9ca3af' }}>
-                          🚗 {st.drivingKm.toFixed(0)} km{st.fuelCost > 0 ? ` · ${st.currency} ${st.fuelCost.toFixed(0)}` : ''}
+                          🚗 {st.drivingKm.toFixed(0)} km{st.fuelCost > 0 ? ` · ${tripCurrency} ${st.fuelCost.toFixed(0)}` : ''}
                         </span>
                       )}
-                      {st.transitCost > 0 && (
-                        <span style={{ fontSize: 10, color: '#9ca3af' }}>
-                          🚌 {st.currency} {st.transitCost.toFixed(0)}
+                      {st.transitGroups.map(({ currency: c, amount }) => (
+                        <span key={c} style={{ fontSize: 10, color: '#9ca3af' }}>
+                          🚌 {c} {amount.toFixed(0)}
                         </span>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>

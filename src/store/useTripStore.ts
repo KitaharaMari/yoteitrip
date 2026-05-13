@@ -17,6 +17,7 @@ interface TripState {
   setCoverPhoto: (id: string, url: string) => void;
   deleteTrip: (id: string) => void;
   renameTrip: (id: string, title: string) => void;
+  setTripCurrency: (currency: string) => void;
   setCurrentTrip: (id: string) => void;
 
   // ── Per-trip operations (all act on currentTripId) ────────────────────────
@@ -150,6 +151,15 @@ export const useTripStore = create<TripState>()(
           );
           const isActive = s.currentTripId === id;
           const updatedCur = isActive ? updated.find((t) => t.id === id) : undefined;
+          return { trips: updated, ...(updatedCur ? { trip: updatedCur } : {}) };
+        }),
+
+      setTripCurrency: (currency) =>
+        set((s) => {
+          const updated = s.trips.map((t) =>
+            t.id === s.currentTripId ? { ...t, currency, updatedAt: timestamp() } : t,
+          );
+          const updatedCur = updated.find((t) => t.id === s.currentTripId);
           return { trips: updated, ...(updatedCur ? { trip: updatedCur } : {}) };
         }),
 

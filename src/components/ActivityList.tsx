@@ -117,17 +117,21 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
     .filter((a) => (a.type === 'STAY' || a.type === 'MEAL') && a.estimatedCost != null)
     .reduce((sum, a) => sum + (a.estimatedCost ?? 0), 0);
 
-  // Transit fares are auto-filled by CommuteConnector / OriginConnector from Directions API.
-  const transitCost = primaryActivities
-    .filter((a) => a.transitFare != null)
-    .reduce((sum, a) => sum + (a.transitFare ?? 0), 0);
+  // Group transit fares by their own currency (from API), fall back to trip currency
+  const transitMap: Record<string, number> = {};
+  for (const a of primaryActivities) {
+    if (!a.transitFare || a.transitFare <= 0) continue;
+    const c = (a.transitFareCurrency && a.transitFareCurrency !== 'undefined' && a.transitFareCurrency.trim())
+      ? a.transitFareCurrency : currency;
+    transitMap[c] = (transitMap[c] ?? 0) + a.transitFare;
+  }
+  const transitGroups = Object.entries(transitMap).map(([c, amount]) => ({ currency: c, amount }));
 
-  // Use the fare's own currency label (e.g. "¥", "JPY") rather than trip.currency so the
-  // summary matches what each connector displays. Falls back to trip.currency only when absent.
-  const transitCurrencyLabel =
-    primaryActivities.find((a) => a.transitFareCurrency)?.transitFareCurrency ?? currency;
-
-  const hasBudget = activityCost > 0 || transitCost > 0;
+  const hasBudget = activityCost > 0 || transitGroups.length > 0;
+  // All in one currency → can show a combined total
+  const allSameCurrency =
+    transitGroups.length === 0 ||
+    (transitGroups.length === 1 && transitGroups[0].currency === currency);
 
   // Driving distance — summed from all activities' persisted commuteDrivingMeters.
   const totalDrivingMeters = primaryActivities.reduce(
@@ -273,25 +277,25 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
                 </span>
               </div>
             )}
-            {transitCost > 0 && (
-              <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            {transitGroups.map(({ currency: c, amount }) => (
+              <div key={c} className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <span className="text-xs text-gray-500">{t('list.costTransit')}</span>
-                <span className="tabular-nums text-gray-700">
-                  {transitCurrencyLabel} {transitCost.toLocaleString()}
+                <span className="tabular-nums text-gray-700">{c} {amount.toLocaleString()}</span>
+              </div>
+            ))}
+            {/* Show combined total only when everything is in one currency */}
+            {allSameCurrency && (activityCost > 0 || transitGroups.length > 0) && (
+              <div className={`px-4 py-3 flex items-center justify-between ${
+                activityCost > 0 && transitGroups.length > 0 ? 'bg-white border-t border-gray-100' : 'bg-gray-50'
+              }`}>
+                <span className="text-xs font-medium text-gray-600">
+                  {activityCost > 0 && transitGroups.length > 0 ? t('list.costDailyTotal') : t('list.costDailyEst')}
+                </span>
+                <span className="font-semibold text-gray-900 tabular-nums">
+                  {currency} {(activityCost + (transitGroups[0]?.amount ?? 0)).toLocaleString()}
                 </span>
               </div>
             )}
-            {/* Show grand total only when both categories exist */}
-            <div className={`px-4 py-3 flex items-center justify-between ${
-              activityCost > 0 && transitCost > 0 ? 'bg-white border-t border-gray-100' : 'bg-gray-50'
-            }`}>
-              <span className="text-xs font-medium text-gray-600">
-                {activityCost > 0 && transitCost > 0 ? t('list.costDailyTotal') : t('list.costDailyEst')}
-              </span>
-              <span className="font-semibold text-gray-900 tabular-nums">
-                {activityCost > 0 ? currency : transitCurrencyLabel} {(activityCost + transitCost).toLocaleString()}
-              </span>
-            </div>
           </div>
         )}
 
