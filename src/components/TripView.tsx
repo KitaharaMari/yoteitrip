@@ -26,7 +26,7 @@ export function TripView() {
   const [showOverview, setShowOverview] = useState(false);
   const [showExport, setShowExport]     = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
-  const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const activeDay = trip.days.find((d) => d.id === activeDayId) ?? trip.days[0] ?? null;
 
@@ -70,7 +70,8 @@ export function TripView() {
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2500);
     } catch {
-      setSaveState('idle');
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 3000);
     }
   };
 
@@ -115,16 +116,19 @@ export function TripView() {
               <button
                 onClick={handleManualSave}
                 disabled={saveState === 'saving'}
-                title={saveState === 'saved' ? '已保存' : '保存到云端'}
+                title={
+                  saveState === 'saved' ? '已保存到云端'
+                  : saveState === 'error' ? '保存失败，请检查网络'
+                  : '保存到云端'
+                }
                 className={`w-9 h-9 rounded-full border flex items-center justify-center text-sm transition-all ${
-                  saveState === 'saved'
-                    ? 'bg-green-50 border-green-200 text-green-500'
-                    : saveState === 'saving'
-                    ? 'bg-gray-50 border-gray-100 text-gray-300'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
+                  saveState === 'saved'  ? 'bg-green-50 border-green-200 text-green-500'
+                  : saveState === 'error' ? 'bg-red-50 border-red-200 text-red-500'
+                  : saveState === 'saving' ? 'bg-gray-50 border-gray-100 text-gray-300'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
                 }`}
               >
-                {saveState === 'saved' ? '✓' : saveState === 'saving' ? '…' : '💾'}
+                {saveState === 'saved' ? '✓' : saveState === 'saving' ? '…' : saveState === 'error' ? '!' : '💾'}
               </button>
             )}
             <button

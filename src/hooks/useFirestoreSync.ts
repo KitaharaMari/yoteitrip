@@ -22,13 +22,17 @@ export function useFirestoreSync() {
   useEffect(() => {
     if (!user || !syncReady) return;
     const timer = setTimeout(() => {
-      saveCloudData(user.uid, {
+      // Never write manualSavedAt: undefined — setDoc does a full replace and
+      // undefined fields are stripped, which would silently DELETE manualSavedAt
+      // from Firestore and break the manual-save priority on next login.
+      const payload = {
         trips,
         currentTripId,
         wishlist,
         savedAt: new Date().toISOString(),
-        manualSavedAt: lastManualSave ?? undefined,
-      }).catch(() => { /* will retry on next change */ });
+        ...(lastManualSave != null ? { manualSavedAt: lastManualSave } : {}),
+      };
+      saveCloudData(user.uid, payload).catch(() => { /* will retry on next change */ });
     }, 2000);
     return () => clearTimeout(timer);
   }, [user, syncReady, trips, currentTripId, wishlist, lastManualSave]);
