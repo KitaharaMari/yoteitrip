@@ -74,6 +74,19 @@ function TripCard({
 
   const totalDays = trip.days.length;
 
+  const totalDrivingKm = Math.round(
+    trip.days.reduce((sum, day) =>
+      sum + day.activities
+        .filter((a) => !a.isBackup)
+        .reduce((s, a) => s + (a.commuteDrivingMeters ?? 0), 0),
+      0) / 1000,
+  );
+
+  const firstDate = trip.days[0]?.date;
+  const shortStartDate = firstDate
+    ? new Date(firstDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+
   // Relative time computed inside TripCard so it can use t()
   const relativeTime = (iso: string): string => {
     const diff    = Date.now() - new Date(iso).getTime();
@@ -181,8 +194,17 @@ function TripCard({
         ) : (
           <p className="text-sm font-semibold text-gray-900 truncate">{trip.name}</p>
         )}
-        <p className="text-[11px] text-gray-400 mt-0.5">
-          {trip.baseLocation ? `📍 ${trip.baseLocation.name} · ` : ''}修改于 {relativeTime(trip.updatedAt)}
+        <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
+          <span>{t('dashboard.days', { n: totalDays })}</span>
+          {totalDrivingKm > 0 && (
+            <><span className="text-gray-200">·</span><span>🚗 {totalDrivingKm} km</span></>
+          )}
+          {shortStartDate && (
+            <><span className="text-gray-200">·</span><span>📅 {shortStartDate}</span></>
+          )}
+        </p>
+        <p className="text-[11px] text-gray-300 mt-0.5">
+          {trip.baseLocation ? `📍 ${trip.baseLocation.name} · ` : ''}{relativeTime(trip.updatedAt)}
         </p>
       </div>
     </motion.div>
