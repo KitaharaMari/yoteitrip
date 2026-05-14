@@ -301,8 +301,11 @@ export function ExportModal({ onClose }: Props) {
       const id  = await createShareLink(trip, user?.uid ?? null);
       const url = `${window.location.origin}/share/${id}`;
       setShareUrl(url);
-    } catch {
-      setShareError('生成失败，请确认 Firebase 已配置并重试');
+    } catch (e: unknown) {
+      const msg = (e as { code?: string })?.code === 'permission-denied'
+        ? '没有写入权限，请联系管理员或刷新后重试'
+        : '生成失败，请确认 Firebase 已配置并重试';
+      setShareError(msg);
     } finally {
       setShareLoading(false);
     }
