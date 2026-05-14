@@ -38,6 +38,29 @@ function extractPhotoUrl(photos: google.maps.places.PlacePhoto[] | undefined): s
   }
 }
 
+// ── Convert a remote image URL → compressed Base64 via Canvas ────────────────
+// Uses crossOrigin=anonymous so the canvas isn't tainted; returns null on error.
+function urlToBase64(url: string, maxW = 960, maxH = 540, quality = 0.82): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const scale   = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+        const canvas  = document.createElement('canvas');
+        canvas.width  = Math.round(img.naturalWidth  * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch {
+        resolve(null);  // canvas tainted (CORS) — caller falls back to raw URL
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 // ── TripCard ─────────────────────────────────────────────────────────────────
 function TripCard({
   trip, index, onDelete, onChangeCover,
@@ -50,12 +73,36 @@ function TripCard({
   const router          = useRouter();
   const setCurrentTrip  = useTripStore((s) => s.setCurrentTrip);
   const renameTrip      = useTripStore((s) => s.renameTrip);
+  const setCoverPhoto   = useTripStore((s) => s.setCoverPhoto);
   const t               = useT();
 
-  const [hovered, setHovered]     = useState(false);
-  const [renaming, setRenaming]   = useState(false);
-  const [nameInput, setNameInput] = useState(trip.name);
+  const [hovered, setHovered]       = useState(false);
+  const [renaming, setRenaming]     = useState(false);
+  const [nameInput, setNameInput]   = useState(trip.name);
+  const [coverFailed, setCoverFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // When the stored cover URL expires (Google photo_reference has TTL), auto-heal:
+  // search for the city photo again, convert to Base64, and update the store.
+  const handleCoverError = async () => {
+    setCoverFailed(true);
+    if (!trip.baseLocation || !window.google?.maps?.places) return;
+    try {
+      const service = new google.maps.places.PlacesService(document.createElement('div'));
+      service.textSearch({ query: trip.baseLocation.name }, async (results, status) => {
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) return;
+        const rawUrl = results[0].photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 500 });
+        if (!rawUrl) return;
+        const b64 = await urlToBase64(rawUrl);
+        if (b64) {
+          setCoverPhoto(trip.id, b64);
+          setCoverFailed(false);
+        }
+      });
+    } catch {
+      // gradient fallback stays in place
+    }
+  };
 
   useEffect(() => { if (renaming) inputRef.current?.focus(); }, [renaming]);
 
@@ -118,15 +165,16 @@ function TripCard({
       {/* ── Cover: photo if available, else gradient ── */}
       <div
         className="relative h-28 flex items-end p-3 select-none overflow-hidden"
-        style={trip.coverPhotoUrl ? undefined : { background: gradientFor(index) }}
+        style={trip.coverPhotoUrl && !coverFailed ? undefined : { background: gradientFor(index) }}
       >
-        {trip.coverPhotoUrl && (
+        {trip.coverPhotoUrl && !coverFailed && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={trip.coverPhotoUrl}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
+              onError={handleCoverError}
             />
             {/* Dark scrim so text stays readable */}
             <div className="absolute inset-0 bg-black/35" />
@@ -242,7 +290,14 @@ function NewTripModal({ onClose }: { onClose: () => void }) {
         lat:  loc.lat(),
         lng:  loc.lng(),
       });
-      setCoverPhotoUrl(extractPhotoUrl(place.photos));
+      const rawUrl = extractPhotoUrl(place.photos);
+      setCoverPhotoUrl(rawUrl);  // show preview immediately
+      // Convert to Base64 so the URL never expires after storage
+      if (rawUrl) {
+        urlToBase64(rawUrl).then((b64) => {
+          if (b64) setCoverPhotoUrl(b64);
+        });
+      }
     });
     return () => google.maps.event.removeListener(listener);
   }, [isMapsLoaded]);
