@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Activity } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
 import { useTransitRoute, parseFare, type TravelMode, type TransitStep } from '@/hooks/useTransitRoute';
+import { useTimezone } from '@/hooks/useTimezone';
 import { useMapsLoaded } from '@/components/MapProvider';
 import { buildDepartureDate } from '@/lib/departureTime';
 import { haversineKm } from '@/lib/haversine';
@@ -124,6 +125,10 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
 
   const route = useTransitRoute(prevActivity.place, nextActivity.place, mode, mapsLoaded, departureTime);
 
+  // ── Timezone change detection ────────────────────────────────────────────────
+  const prevTz = useTimezone(prevActivity.place?.lat, prevActivity.place?.lng);
+  const nextTz = useTimezone(nextActivity.place?.lat, nextActivity.place?.lng);
+
   // ── Walking route (always computed when places are close enough) ───────────
   const straightLineKm = (
     prevActivity.place?.lat != null && prevActivity.place?.lng != null &&
@@ -186,6 +191,22 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
 
   const hasPlaces = !!(prevActivity.place?.lat && nextActivity.place?.lat);
   const hasRoute  = !!route;
+
+  // Show timezone warning when both timezones are known and differ by ≥1h
+  const tzWarning = (() => {
+    if (prevTz === 'loading' || nextTz === 'loading' || !prevTz || !nextTz) return null;
+    const diff = nextTz.offsetHours - prevTz.offsetHours;
+    if (Math.abs(diff) < 1) return null;
+    const fmt = (h: number) => {
+      const sign = h >= 0 ? '+' : '−';
+      const abs  = Math.abs(h);
+      const hh   = Math.floor(abs);
+      const mm   = Math.round((abs - hh) * 60);
+      return mm > 0 ? `UTC${sign}${hh}:${String(mm).padStart(2, '0')}` : `UTC${sign}${hh}`;
+    };
+    const dir = diff > 0 ? `快 ${diff}h` : `慢 ${Math.abs(diff)}h`;
+    return `${fmt(prevTz.offsetHours)} → ${fmt(nextTz.offsetHours)}，目的地${dir}，注意营业时间`;
+  })();
   const hasSteps  = (route?.steps?.length ?? 0) > 0;
   const displayMode = route?.usedMode ?? mode;
   const transitNoData = mode === 'TRANSIT' && hasRoute && displayMode === 'DRIVING';
@@ -314,6 +335,14 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
           </a>
         )}
       </div>
+
+      {/* ── Timezone change alert ── */}
+      {tzWarning && (
+        <div className="ml-[52px] mr-4 mb-0.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-1.5 text-[10px] text-amber-700">
+          <span className="flex-none">🕐</span>
+          <span>{tzWarning}</span>
+        </div>
+      )}
 
       {/* ── Expanded transit step list ── */}
       {expanded && route?.steps && (
