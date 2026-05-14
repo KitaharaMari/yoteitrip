@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTripStore } from '@/store/useTripStore';
@@ -457,23 +457,74 @@ function compressImage(file: File, maxW = 960, maxH = 540, quality = 0.82): Prom
 }
 
 // ── CoverPickerModal ──────────────────────────────────────────────────────────
+type CoverTab = 'maps' | 'upload';
+
 function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }) {
   const setCoverPhoto = useTripStore((s) => s.setCoverPhoto);
+  const isMapsLoaded  = useMapsLoaded();
   const t             = useT();
 
-  const [previewUrl, setPreviewUrl]     = useState<string | null>(trip.coverPhotoUrl ?? null);
-  const [isDragging, setIsDragging]     = useState(false);
+  const [tab, setTab]               = useState<CoverTab>('maps');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(trip.coverPhotoUrl ?? null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Google Maps photo search state
+  const [searchQuery, setSearchQuery]       = useState(trip.baseLocation?.name ?? '');
+  const [mapPhotos, setMapPhotos]           = useState<string[]>([]);
+  const [searching, setSearching]           = useState(false);
+  const [selectedMapUrl, setSelectedMapUrl] = useState<string | null>(null);
+  const autoSearched = useRef(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const doSearch = useCallback((query: string) => {
+    if (!query.trim() || !isMapsLoaded) return;
+    setSearching(true);
+    setMapPhotos([]);
+    const service = new google.maps.places.PlacesService(document.createElement('div'));
+    service.textSearch({ query }, (results, status) => {
+      setSearching(false);
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) return;
+      const urls: string[] = [];
+      for (const place of results.slice(0, 6)) {
+        for (const photo of (place.photos ?? []).slice(0, 3)) {
+          try {
+            const url = photo.getUrl({ maxWidth: 640, maxHeight: 480 });
+            if (url) urls.push(url);
+          } catch { /* skip */ }
+          if (urls.length >= 9) break;
+        }
+        if (urls.length >= 9) break;
+      }
+      setMapPhotos(urls);
+    });
+  }, [isMapsLoaded]);
+
+  // Auto-search once when maps tab is shown and we have a base location
+  useEffect(() => {
+    if (tab === 'maps' && isMapsLoaded && trip.baseLocation?.name && !autoSearched.current) {
+      autoSearched.current = true;
+      doSearch(trip.baseLocation.name);
+    }
+  }, [tab, isMapsLoaded, trip.baseLocation?.name, doSearch]);
+
+  const handleSelectMapPhoto = async (url: string) => {
+    if (isProcessing) return;
+    setSelectedMapUrl(url);
+    setIsProcessing(true);
+    const b64 = await urlToBase64(url);
+    setPreviewUrl(b64 ?? url);
+    setIsProcessing(false);
+  };
 
   const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     setIsProcessing(true);
     try {
       setPreviewUrl(await compressImage(file));
-    } catch {
-      // ignore compression errors — keep previous preview
-    } finally {
+      setSelectedMapUrl(null);
+    } catch { /* ignore */ } finally {
       setIsProcessing(false);
     }
   };
@@ -486,7 +537,6 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
   };
 
   const handleConfirm = () => {
-    // previewUrl null = user clicked "移除封面"
     setCoverPhoto(trip.id, previewUrl ?? '');
     onClose();
   };
@@ -498,76 +548,182 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/30"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-6 bg-black/30"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
-        initial={{ scale: 0.92, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.92, opacity: 0 }}
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-        className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl flex flex-col gap-4"
+        className="w-full sm:max-w-sm bg-white sm:rounded-3xl rounded-t-3xl p-5 shadow-2xl flex flex-col gap-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">{t('cover.title')}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{t('cover.subtitle')}</p>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">{t('cover.title')}</h3>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors text-sm">✕</button>
         </div>
 
-        {/* Drop zone / preview */}
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label="选择封面图片"
-          className={`relative rounded-2xl overflow-hidden h-40 cursor-pointer border-2 border-dashed transition-all ${
-            isDragging
-              ? 'border-indigo-400 bg-indigo-50 scale-[0.99]'
-              : 'border-gray-200 hover:border-gray-400'
-          }`}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-        >
-          {previewUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl} alt="封面预览" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/20 flex items-end justify-center pb-3">
-                <span className="text-white text-[11px] bg-black/40 px-3 py-1 rounded-full">
-                  {t('cover.reselect')}
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-2.5 select-none">
-              {isProcessing ? (
-                <span className="text-sm text-gray-400">处理中…</span>
-              ) : (
+        {/* Tab switcher */}
+        <div className="flex rounded-2xl bg-gray-100 p-1 gap-1">
+          {(['maps', 'upload'] as CoverTab[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
+                tab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {key === 'maps' ? `🗺️ ${t('cover.tabMaps')}` : `📁 ${t('cover.tabUpload')}`}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Google Maps photo tab ── */}
+        {tab === 'maps' && (
+          <div className="flex flex-col gap-3">
+            {/* Search bar */}
+            <div className="flex gap-2">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') doSearch(searchQuery); }}
+                placeholder={t('cover.searchPlaceholder')}
+                className="flex-1 px-3.5 py-2.5 rounded-2xl border border-gray-200 text-sm outline-none focus:border-gray-400 transition-colors"
+              />
+              <button
+                onClick={() => doSearch(searchQuery)}
+                disabled={searching || !searchQuery.trim() || !isMapsLoaded}
+                className="px-4 rounded-2xl bg-gray-900 text-white text-xs font-medium disabled:opacity-40 hover:bg-gray-700 active:scale-95 transition-all"
+              >
+                {searching ? '…' : t('cover.search')}
+              </button>
+            </div>
+
+            {/* Photo grid */}
+            <div className="min-h-[8rem]">
+              {searching ? (
+                <div className="h-32 flex items-center justify-center">
+                  <span className="text-sm text-gray-400">{t('cover.searching')}</span>
+                </div>
+              ) : mapPhotos.length > 0 ? (
                 <>
-                  <span className="text-3xl leading-none opacity-30">🖼️</span>
-                  <span className="text-xs text-gray-400">{t('cover.clickOrDrag')}</span>
-                  <span className="text-[10px] text-gray-300">{t('cover.formats')}</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {mapPhotos.map((url, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSelectMapPhoto(url)}
+                        disabled={isProcessing}
+                        className={`relative aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all active:scale-95 ${
+                          selectedMapUrl === url
+                            ? 'border-emerald-500'
+                            : 'border-transparent hover:border-gray-300'
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          crossOrigin="anonymous"
+                        />
+                        {selectedMapUrl === url && (
+                          <div className="absolute inset-0 bg-emerald-500/25 flex items-center justify-center">
+                            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs flex items-center justify-center font-bold shadow">✓</span>
+                          </div>
+                        )}
+                        {isProcessing && selectedMapUrl === url && (
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <span className="text-white text-[10px]">{t('cover.processing')}</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-300 mt-2 text-center">{t('cover.mapsNote')}</p>
                 </>
+              ) : (
+                <div className="h-32 flex items-center justify-center">
+                  <span className="text-xs text-gray-300">{autoSearched.current ? t('cover.noPhotos') : t('cover.searchPlaceholder')}</span>
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ''; }}
-        />
+        {/* ── Upload tab ── */}
+        {tab === 'upload' && (
+          <>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="选择封面图片"
+              className={`relative rounded-2xl overflow-hidden h-36 cursor-pointer border-2 border-dashed transition-all ${
+                isDragging
+                  ? 'border-indigo-400 bg-indigo-50 scale-[0.99]'
+                  : 'border-gray-200 hover:border-gray-400'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              {previewUrl && !selectedMapUrl ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewUrl} alt="封面预览" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/20 flex items-end justify-center pb-3">
+                    <span className="text-white text-[11px] bg-black/40 px-3 py-1 rounded-full">
+                      {t('cover.reselect')}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center gap-2.5 select-none">
+                  {isProcessing ? (
+                    <span className="text-sm text-gray-400">{t('cover.processing')}</span>
+                  ) : (
+                    <>
+                      <span className="text-3xl leading-none opacity-30">🖼️</span>
+                      <span className="text-xs text-gray-400">{t('cover.clickOrDrag')}</span>
+                      <span className="text-[10px] text-gray-300">{t('cover.formats')}</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ''; }}
+            />
+          </>
+        )}
+
+        {/* Selected preview strip (maps tab only, when photo selected) */}
+        {tab === 'maps' && previewUrl && selectedMapUrl && (
+          <div className="relative rounded-2xl overflow-hidden h-20 border border-emerald-100">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="封面预览" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/15 flex items-center justify-end pr-3">
+              <span className="text-white text-[10px] bg-black/30 px-2.5 py-1 rounded-full">
+                {t('newTrip.coverPreview')}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Remove cover */}
-        {previewUrl && (
+        {previewUrl && !isProcessing && (
           <button
-            onClick={() => setPreviewUrl(null)}
-            className="text-[11px] text-gray-400 hover:text-red-400 transition-colors -mt-1"
+            onClick={() => { setPreviewUrl(null); setSelectedMapUrl(null); }}
+            className="text-[11px] text-gray-400 hover:text-red-400 transition-colors text-center -mt-1"
           >
             {t('cover.remove')}
           </button>
