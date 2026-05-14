@@ -639,7 +639,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logoyt.jpeg" alt="" className="h-7 w-7 rounded-lg object-cover flex-none" />
+              <img src="/logoyt.jpeg" alt="" className="h-9 w-9 rounded-xl object-cover flex-none" />
               <span className="text-xs font-bold tracking-wide select-none">
                 <span style={{ color: '#3D5568' }}>Yotei</span>
                 <span style={{ color: '#47BB8E' }}>trip</span>
@@ -791,7 +791,7 @@ export function TripDashboard() {
             <img
               src="/logoyt.jpeg"
               alt="YoteiTrip"
-              className="h-8 w-8 rounded-xl object-cover flex-none"
+              className="h-11 w-11 rounded-2xl object-cover flex-none"
             />
             <span className="text-sm font-bold tracking-wide select-none">
               <span style={{ color: '#3D5568' }}>Yotei</span>

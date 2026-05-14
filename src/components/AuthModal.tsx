@@ -121,7 +121,7 @@ export function AuthModal({ onClose }: Props) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logoyt.jpeg" alt="" className="h-9 w-9 rounded-xl object-cover flex-none" aria-hidden />
+            <img src="/logoyt.jpeg" alt="" className="h-11 w-11 rounded-2xl object-cover flex-none" aria-hidden />
             <div>
               <h3 className="text-base font-bold">
                 <span style={{ color: '#3D5568' }}>Yotei</span>
