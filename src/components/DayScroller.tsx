@@ -24,54 +24,65 @@ export function DayScroller({ days, activeDayId, onSelect, onAddDay, showOvervie
 
   return (
     <div className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm border-b border-gray-100">
-      <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar">
+      <div className="flex items-center">
 
-        {/* 总览 tab */}
-        <button
-          onClick={onSelectOverview}
-          className={`flex-none px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-            showOverview
-              ? 'text-white'
-              : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
-          }`}
-          style={showOverview ? { backgroundColor: '#47BB8E' } : undefined}
-        >
-          {t('trip.overview')}
-        </button>
+        {/* ── Scrollable tabs area ── */}
+        <div className="flex-1 flex items-center gap-2 pl-4 pr-2 py-2.5 overflow-x-auto no-scrollbar min-w-0">
 
-        {/* Divider */}
-        <div className="w-px h-5 bg-gray-200 flex-none" />
+          {/* 总览 tab */}
+          <button
+            onClick={onSelectOverview}
+            className={`flex-none px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+              showOverview
+                ? 'text-white'
+                : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
+            }`}
+            style={showOverview ? { backgroundColor: '#47BB8E' } : undefined}
+          >
+            {t('trip.overview')}
+          </button>
 
-        {/* Day tabs */}
-        {days.map((day) => {
-          const isActive = !showOverview && activeDayId === day.id;
-          return (
-            <button
-              key={day.id}
-              onClick={() => { onSelect(day.id); }}
-              className={`flex-none flex flex-col items-center px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-                isActive
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
-              }`}
-            >
-              <span>{day.label}</span>
-              {day.date && (
-                <span className={`text-[9px] mt-0.5 font-normal ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {shortDate(day.date)}
-                </span>
-              )}
-            </button>
-          );
-        })}
+          {/* Divider */}
+          <div className="w-px h-5 bg-gray-200 flex-none" />
 
-        <button
-          onClick={onAddDay}
-          aria-label="添加天数"
-          className="flex-none ml-1 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 text-lg leading-none hover:border-gray-400 hover:text-gray-700 transition-colors"
-        >
-          +
-        </button>
+          {/* Day tabs */}
+          {days.map((day) => {
+            const isActive = !showOverview && activeDayId === day.id;
+            return (
+              <button
+                key={day.id}
+                onClick={() => { onSelect(day.id); }}
+                className={`flex-none flex flex-col items-center px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                  isActive
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
+                }`}
+              >
+                <span>{day.label}</span>
+                {day.date && (
+                  <span className={`text-[9px] mt-0.5 font-normal ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
+                    {shortDate(day.date)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Fade gradient hint ── */}
+        <div className="w-6 flex-none bg-gradient-to-r from-transparent to-gray-50/80 pointer-events-none" />
+
+        {/* ── + button — always visible, outside the scroll area ── */}
+        <div className="flex-none pr-3 py-2.5">
+          <button
+            onClick={onAddDay}
+            aria-label="添加天数"
+            className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 text-lg leading-none hover:border-gray-400 hover:text-gray-700 transition-colors"
+          >
+            +
+          </button>
+        </div>
+
       </div>
     </div>
   );
