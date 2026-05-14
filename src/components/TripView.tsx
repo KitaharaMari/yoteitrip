@@ -30,6 +30,11 @@ export function TripView() {
 
   const activeDay = trip.days.find((d) => d.id === activeDayId) ?? trip.days[0] ?? null;
 
+  // Initialize currency to 'CAD' when undefined so all components use a real value.
+  useEffect(() => {
+    if (!trip.currency) setTripCurrency('CAD');
+  }, [trip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keep each day's origin in sync with the previous day's last accommodation.
   const prevDayIndex = trip.days.findIndex((d) => d.id === activeDay?.id) - 1;
   const prevDayLastAccomPlaceId = trip.days[prevDayIndex]

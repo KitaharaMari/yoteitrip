@@ -102,7 +102,7 @@ async function captureAndExportPdf(el: HTMLElement, filename: string): Promise<v
 // ── TripSummaryCard — off-screen capture target ───────────────────────────────
 const TripSummaryCard = forwardRef<HTMLDivElement, { trip: Trip; qrDataUrl: string | null }>(
   function TripSummaryCard({ trip, qrDataUrl }, ref) {
-    const tripCurrency   = trip.currency ?? 'USD';
+    const tripCurrency   = trip.currency ?? 'CAD';
     const allStats       = trip.days.map((d) => computeDayStats(d, tripCurrency));
     const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
     const totalUserCost  = allStats.reduce((s, st) => s + st.totalCost, 0);

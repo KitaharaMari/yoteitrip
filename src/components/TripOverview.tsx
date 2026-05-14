@@ -64,7 +64,7 @@ function fmt(currency: string, amount: number): string {
 
 export function TripOverview({ trip }: { trip: Trip }) {
   const t            = useT();
-  const tripCurrency = trip.currency ?? 'USD';
+  const tripCurrency = trip.currency ?? 'CAD';
   const allStats     = trip.days.map((d) => computeDayStats(d, tripCurrency));
 
   const totalDrivingKm  = allStats.reduce((s, st) => s + st.drivingKm, 0);
