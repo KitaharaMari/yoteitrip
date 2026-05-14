@@ -311,7 +311,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
         <div className="px-4 pt-5 pb-8 flex flex-col gap-3">
             <p className="text-[11px] uppercase tracking-widest text-gray-400">{t('list.addModule')}</p>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {REGULAR_TYPES.map((type) => {
                 const meta = ACTIVITY_META[type];
                 return (
