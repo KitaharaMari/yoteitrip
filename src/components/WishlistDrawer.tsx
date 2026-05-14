@@ -116,8 +116,8 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
               <div className="w-10 h-1 rounded-full bg-gray-200" />
             </div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-none">
+            {/* Header — title + save + close only */}
+            <div className="flex items-center justify-between px-5 pt-3 pb-2 flex-none">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">{t('wishlist.title')}</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5">
@@ -127,13 +127,7 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsSearching(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white rounded-xl text-xs font-medium hover:bg-gray-700 active:scale-95 transition-all"
-                >
-                  {t('wishlist.addPlace')}
-                </button>
+              <div className="flex items-center gap-1">
                 {user && (
                   <button
                     onClick={handleSave}
@@ -160,13 +154,24 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
               </div>
             </div>
 
+            {/* Add button — full-width, immediately visible */}
+            <div className="px-5 pb-3 flex-none">
+              <button
+                onClick={() => setIsSearching(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gray-900 text-white rounded-2xl text-sm font-medium hover:bg-gray-700 active:scale-[0.98] transition-all"
+              >
+                <span className="text-base leading-none">+</span>
+                {t('wishlist.addPlace')}
+              </button>
+            </div>
+
             {/* Category filter */}
-            <div className="flex gap-2 px-5 py-3 border-b border-gray-100 flex-none overflow-x-auto">
+            <div className="flex gap-2 px-5 pb-3 border-b border-gray-100 flex-none overflow-x-auto">
               {FILTER_OPTIONS.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setFilter(cat)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors flex-none ${
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors flex-none ${
                     filter === cat ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                   }`}
                 >
