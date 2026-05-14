@@ -9,10 +9,10 @@ import { saveCloudData } from '@/lib/firestore';
 import { useT } from '@/hooks/useT';
 import { SearchOverlay } from './SearchOverlay';
 
-const CATEGORY_META: Record<WishlistCategory, { icon: string; label: string; type: ActivityType }> = {
-  RESTAURANT: { icon: '🍽️', label: '餐厅', type: 'MEAL' },
-  ATTRACTION: { icon: '🏛️', label: '景点', type: 'STAY' },
-  BACKUP:     { icon: '📌', label: '备选', type: 'STAY' },
+const CATEGORY_META: Record<WishlistCategory, { icon: string; labelKey: string; type: ActivityType }> = {
+  RESTAURANT: { icon: '🍽️', labelKey: 'wishlist.restaurant', type: 'MEAL' },
+  ATTRACTION: { icon: '🏛️', labelKey: 'wishlist.attraction', type: 'STAY' },
+  BACKUP:     { icon: '📌', labelKey: 'wishlist.backup',     type: 'STAY' },
 };
 
 const CATEGORY_ORDER: WishlistCategory[] = ['RESTAURANT', 'ATTRACTION', 'BACKUP'];
@@ -454,12 +454,12 @@ function WishlistItemRow({
           <button onClick={(e) => { e.stopPropagation(); onCycleCategory(); }}
             title="点击切换类型"
             className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors flex-none mt-0.5">
-            {meta.icon} {meta.label}
+            {meta.icon} {t(meta.labelKey)}
           </button>
         )}
         {isSelectMode && (
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-gray-100 text-gray-400 flex-none mt-0.5">
-            {meta.icon} {meta.label}
+            {meta.icon} {t(meta.labelKey)}
           </span>
         )}
 

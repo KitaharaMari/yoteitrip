@@ -121,7 +121,7 @@ export function ActivityCard({
           </span>
         )}
 
-        <span className="text-base leading-none flex-none w-5 text-center" aria-label={meta.label}>
+        <span className="text-base leading-none flex-none w-5 text-center" aria-label={t(meta.labelKey)}>
           {meta.icon}
         </span>
 
@@ -234,7 +234,7 @@ export function ActivityCard({
                   }`}
                 >
                   <span>{m.icon}</span>
-                  <span>{m.label}</span>
+                  <span>{t(m.labelKey)}</span>
                 </button>
               );
             })}

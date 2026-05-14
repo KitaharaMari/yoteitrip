@@ -2,6 +2,7 @@
 
 import type { Day } from '@/types';
 import { useT } from '@/hooks/useT';
+import { useLangStore } from '@/store/useLangStore';
 
 interface Props {
   days:             Day[];
@@ -12,13 +13,14 @@ interface Props {
   onSelectOverview: () => void;
 }
 
-function shortDate(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-}
-
 export function DayScroller({ days, activeDayId, onSelect, onAddDay, showOverview, onSelectOverview }: Props) {
-  const t = useT();
+  const t    = useT();
+  const lang = useLangStore((s) => s.lang);
+
+  const shortDate = (iso: string): string => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(lang, { month: 'short', day: 'numeric' });
+  };
 
   return (
     <div className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm border-b border-gray-100">

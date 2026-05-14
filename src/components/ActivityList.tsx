@@ -319,7 +319,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
                     className="flex flex-col items-center gap-1.5 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-gray-300 active:scale-95 transition-all"
                   >
                     <span className="text-xl leading-none">{meta.icon}</span>
-                    <span className="text-[10px] text-gray-500">{meta.label}</span>
+                    <span className="text-[10px] text-gray-500">{t(meta.labelKey)}</span>
                   </button>
                 );
               })}

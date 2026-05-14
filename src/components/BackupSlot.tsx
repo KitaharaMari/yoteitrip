@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import type { Activity, ActivityType, SceneTag } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
 import { ACTIVITY_META } from '@/lib/constants';
+import { useT } from '@/hooks/useT';
 import { ALL_SCENE_TAGS, SCENE_TAG_META } from '@/lib/sceneTags';
 import { BackupCard } from './BackupCard';
 
@@ -28,6 +29,7 @@ export function BackupSlot({
   onSetPreferred,
 }: Props) {
   const addBackupActivity = useTripStore((s) => s.addBackupActivity);
+  const t = useT();
   const [activeTag, setActiveTag] = useState<SceneTag | null>(null);
 
   const tagsInUse = ALL_SCENE_TAGS.filter((t) =>
@@ -110,7 +112,7 @@ export function BackupSlot({
                     onClick={() => addBackupActivity(dayId, primaryId, type)}
                     className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-500 hover:border-gray-400 transition-colors"
                   >
-                    {meta.icon} {meta.label}
+                    {meta.icon} {t(meta.labelKey)}
                   </button>
                 );
               })}
