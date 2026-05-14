@@ -214,17 +214,15 @@ function TripCard({
           )}
         </AnimatePresence>
 
-        {/* Day count badge */}
-        <span className="relative text-[11px] text-white/90 font-medium bg-black/20 px-2 py-0.5 rounded-full">
-          {t('dashboard.days', { n: totalDays })}
-        </span>
-        <div className="relative ml-auto w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-          <span className="text-white text-xs">→</span>
-        </div>
       </div>
 
       {/* ── Info row ── */}
-      <div className="bg-white px-4 py-3">
+      <div className="bg-white px-4 pt-2.5 pb-3">
+        {/* Days pill — above the title */}
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 mb-1.5">
+          {t('dashboard.days', { n: totalDays })}
+        </span>
+
         {renaming ? (
           <input
             ref={inputRef}
@@ -237,21 +235,22 @@ function TripCard({
               if (e.key === 'Escape') { setNameInput(trip.name); setRenaming(false); }
             }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full text-sm font-semibold text-gray-900 outline-none border-b-2 border-indigo-400 bg-transparent pb-0.5"
+            className="w-full text-sm font-bold text-gray-900 outline-none border-b-2 border-indigo-400 bg-transparent pb-0.5"
           />
         ) : (
-          <p className="text-sm font-semibold text-gray-900 truncate">{trip.name}</p>
+          <p className="text-sm font-bold text-gray-900 truncate leading-snug">{trip.name}</p>
         )}
-        <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
-          <span>{t('dashboard.days', { n: totalDays })}</span>
-          {totalDrivingKm > 0 && (
-            <><span className="text-gray-200">·</span><span>🚗 {totalDrivingKm} km</span></>
-          )}
-          {shortStartDate && (
-            <><span className="text-gray-200">·</span><span>📅 {shortStartDate}</span></>
-          )}
-        </p>
-        <p className="text-[11px] text-gray-300 mt-0.5">
+
+        {/* Stats — km + start date only (days shown in pill above) */}
+        {(totalDrivingKm > 0 || shortStartDate) && (
+          <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1 flex-wrap">
+            {totalDrivingKm > 0 && <span>🚗 {totalDrivingKm} km</span>}
+            {totalDrivingKm > 0 && shortStartDate && <span className="text-gray-200">·</span>}
+            {shortStartDate && <span>📅 {shortStartDate}</span>}
+          </p>
+        )}
+
+        <p className="text-[10px] text-gray-300 mt-0.5">
           {trip.baseLocation ? `📍 ${trip.baseLocation.name} · ` : ''}{relativeTime(trip.updatedAt)}
         </p>
       </div>
