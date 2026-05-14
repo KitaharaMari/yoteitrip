@@ -223,23 +223,34 @@ function TripCard({
           {t('dashboard.days', { n: totalDays })}
         </span>
 
-        {renaming ? (
-          <input
-            ref={inputRef}
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') commitRename();
-              if (e.key === 'Escape') { setNameInput(trip.name); setRenaming(false); }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full text-sm font-bold text-gray-900 outline-none border-b-2 border-indigo-400 bg-transparent pb-0.5"
-          />
-        ) : (
-          <p className="text-sm font-bold text-gray-900 truncate leading-snug">{trip.name}</p>
-        )}
+        <div className="flex items-center gap-2">
+          {renaming ? (
+            <input
+              ref={inputRef}
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') { setNameInput(trip.name); setRenaming(false); }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 text-sm font-bold text-gray-900 outline-none border-b-2 border-indigo-400 bg-transparent pb-0.5"
+            />
+          ) : (
+            <p className="flex-1 text-sm font-bold text-gray-900 truncate leading-snug">{trip.name}</p>
+          )}
+          {!renaming && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+              aria-label="进入行程"
+              className="flex-none w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-900 hover:text-white flex items-center justify-center text-gray-400 text-sm transition-all active:scale-90"
+            >
+              →
+            </button>
+          )}
+        </div>
 
         {/* Stats — km + start date only (days shown in pill above) */}
         {(totalDrivingKm > 0 || shortStartDate) && (
