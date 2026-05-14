@@ -14,7 +14,19 @@
       "Bash(Write-Host \"Cache cleared\")",
       "PowerShell(Get-Process *)",
       "Bash(npx eslint *)",
-      "PowerShell(Copy-Item *)"
+      "PowerShell(Copy-Item *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(xargs grep -l \"currency\\\\|Currency\\\\|budget\\\\|Budget\")",
+      "Bash(git revert *)",
+      "Bash(git commit *)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Justin\\\\triptool\")",
+      "Bash(findstr \"0510\")",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Justin\\\\triptool\" -Recurse -Directory -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "Bash(xargs grep -l \"^export.*type.*Trip\\\\|^export.*interface.*Trip\")",
+      "Bash(xargs grep -l \"getState\\\\|setState\\\\|subscribe\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
