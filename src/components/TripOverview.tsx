@@ -22,7 +22,7 @@ export function computeDayStats(day: Day, tripCurrency: string): DayStats {
   const primary = day.activities.filter((a) => !a.isBackup);
 
   const activityCost = primary
-    .filter((a) => (a.type === 'STAY' || a.type === 'MEAL') && a.estimatedCost != null)
+    .filter((a) => (a.type === 'STAY' || a.type === 'MEAL' || a.type === 'LONG_DISTANCE') && a.estimatedCost != null)
     .reduce((sum, a) => sum + (a.estimatedCost ?? 0), 0);
 
   // Group transit fares by their own currency label (from API)
@@ -47,7 +47,7 @@ export function computeDayStats(day: Day, tripCurrency: string): DayStats {
   }
 
   const places = primary
-    .filter((a) => a.place?.name && a.type !== 'LONG_DISTANCE' && a.type !== 'TRANSPORT')
+    .filter((a) => a.place?.name && a.type !== 'TRANSPORT')
     .map((a) => a.place!.name);
 
   return { drivingKm, activityCost, fuelCost, totalCost: activityCost + fuelCost, transitGroups, places };

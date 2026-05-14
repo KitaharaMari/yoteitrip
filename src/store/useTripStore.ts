@@ -56,8 +56,8 @@ function createDay(index: number): Day {
 
 function createActivity(type: ActivityType): Activity {
   const base = { id: uid(), type, title: '', startTime: '09:00', duration: 60 };
-  if (type === 'TRANSPORT' || type === 'LONG_DISTANCE') {
-    return { ...base, duration: type === 'LONG_DISTANCE' ? 120 : 60, isManualTime: true };
+  if (type === 'TRANSPORT') {
+    return { ...base, isManualTime: true };
   }
   return base;
 }
@@ -424,19 +424,35 @@ export const useTripStore = create<TripState>()(
       name: 'yoteitrip-trip',
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 1,
-      // Migrate from v0 (single trip) → v1 (trips array)
+      version: 2,
       migrate(raw, version) {
+        // v0 → v1: single trip → trips array
         if (version < 1) {
           const old = raw as { trip?: Trip; wishlist?: WishlistItem[] };
           const existing = old.trip;
           if (existing) {
-            return {
-              trips:         [existing],
-              currentTripId: existing.id,
-              trip:          existing,
-              wishlist:      old.wishlist ?? [],
-            };
+            (raw as Record<string, unknown>).trips         = [existing];
+            (raw as Record<string, unknown>).currentTripId = existing.id;
+            (raw as Record<string, unknown>).trip          = existing;
+            (raw as Record<string, unknown>).wishlist      = old.wishlist ?? [];
+          }
+        }
+        // v1 → v2: clear isManualTime from LONG_DISTANCE activities so they
+        //          join the auto-cascade chain (they were wrongly set to true on creation)
+        if (version < 2) {
+          const state = raw as TripState;
+          if (Array.isArray(state.trips)) {
+            state.trips = state.trips.map((t) => ({
+              ...t,
+              days: (t.days ?? []).map((d) => ({
+                ...d,
+                activities: (d.activities ?? []).map((a) =>
+                  a.type === 'LONG_DISTANCE' && a.isManualTime
+                    ? { ...a, isManualTime: false }
+                    : a,
+                ),
+              })),
+            }));
           }
         }
         return raw as TripState;

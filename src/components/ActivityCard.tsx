@@ -60,21 +60,20 @@ export function ActivityCard({
   const t              = useT();
 
   const meta           = ACTIVITY_META[activity.type];
-  const isLongDistance = activity.type === 'LONG_DISTANCE';
+  const isWaypoint     = activity.type === 'LONG_DISTANCE';
   const hour           = parseInt(activity.startTime.split(':')[0], 10);
   const isLate         = hour >= 23;
 
   const isRegularPlace = activity.type === 'STAY' || activity.type === 'MEAL' || activity.type === 'ACCOMMODATION';
 
-  const showTimeInput      = isFirst || activity.type === 'TRANSPORT' || isLongDistance;
-  const showDurationPicker = isRegularPlace || isLongDistance;
-  const showBudget         = activity.type === 'STAY' || activity.type === 'MEAL';
+  // Waypoint (经停点) behaves like a regular place for time cascade but keeps its own type.
+  const showTimeInput      = isFirst || activity.type === 'TRANSPORT';
+  const showDurationPicker = isRegularPlace || isWaypoint;
+  const showBudget         = activity.type === 'STAY' || activity.type === 'MEAL' || isWaypoint;
   const showFork           = !!onToggleBackup;
   const showDescription    = true;
   const showTypeSwitcher   = isRegularPlace;
-  // Show the info row whenever a place is selected — even if editorial/rating are absent,
-  // we still render the ↗ link so users can always open the Google Maps page.
-  const showPlaceInfo      = isRegularPlace && !!activity.place;
+  const showPlaceInfo      = (isRegularPlace || isWaypoint) && !!activity.place;
 
   // Opening-hours status — only relevant for STAY / MEAL
   const hoursStatus = (activity.type === 'STAY' || activity.type === 'MEAL')
@@ -83,7 +82,7 @@ export function ActivityCard({
 
   return (
     <div className={`relative rounded-2xl border shadow-sm flex flex-col transition-colors ${
-      isLongDistance ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'
+      isWaypoint ? 'bg-violet-50/40 border-violet-100' : 'bg-white border-gray-100'
     }`}>
 
       {/* ── Opening-hours badge (top-right corner) ── */}
@@ -129,9 +128,7 @@ export function ActivityCard({
         {/* ── Place name: clicking opens SearchOverlay ── */}
         <button onClick={onEdit} className="flex-1 min-w-0 text-left">
           <p className={`text-sm truncate leading-tight ${
-            activity.place?.name
-              ? (isLongDistance ? 'text-blue-800' : 'text-gray-800')
-              : 'text-gray-300'
+            activity.place?.name ? 'text-gray-800' : 'text-gray-300'
           }`}>
             {activity.place?.name ?? t('card.searchPlaceholder')}
           </p>

@@ -29,7 +29,7 @@ interface Props {
   onOpenWishlist?: () => void;
 }
 
-const REGULAR_TYPES: ActivityType[] = ['STAY', 'MEAL', 'ACCOMMODATION'];
+const REGULAR_TYPES: ActivityType[] = ['STAY', 'MEAL', 'ACCOMMODATION', 'LONG_DISTANCE'];
 
 const CATEGORY_TO_TYPE: Record<WishlistCategory, ActivityType> = {
   RESTAURANT: 'MEAL',
@@ -114,7 +114,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
 
   // ── Budget ───────────────────────────────────────────────────────────────
   const activityCost = primaryActivities
-    .filter((a) => (a.type === 'STAY' || a.type === 'MEAL') && a.estimatedCost != null)
+    .filter((a) => (a.type === 'STAY' || a.type === 'MEAL' || a.type === 'LONG_DISTANCE') && a.estimatedCost != null)
     .reduce((sum, a) => sum + (a.estimatedCost ?? 0), 0);
 
   // Group transit fares by their own currency (from API), fall back to trip currency
@@ -324,17 +324,6 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
                 );
               })}
             </div>
-
-            <button onClick={() => addActivity(dayId, 'LONG_DISTANCE')}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 rounded-2xl border border-blue-100 hover:border-blue-300 active:scale-[0.99] transition-all"
-            >
-              <span className="text-xl leading-none">🚌</span>
-              <div className="text-left">
-                <p className="text-sm font-medium text-blue-800">{t('list.intercity')}</p>
-                <p className="text-[11px] text-blue-400 mt-0.5">{t('list.intercitySub')}</p>
-              </div>
-              <span className="ml-auto text-blue-300 text-sm">+</span>
-            </button>
 
             {onOpenWishlist && (
               <button
