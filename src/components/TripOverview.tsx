@@ -306,9 +306,9 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
             style={{ overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Static Map — aspect-video */}
+            {/* Static Map — panoramic 640×260 ratio to match server image */}
             {mapUrl && (
-              <div className="relative w-full aspect-video border-t border-gray-50 bg-gray-50">
+              <div className="relative w-full border-t border-gray-50 bg-gray-50" style={{ aspectRatio: '640/260' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={mapUrl}

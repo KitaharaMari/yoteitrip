@@ -4,14 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 // Referer headers — meaning domain restrictions on the client key are bypassed.
 // This server-side proxy keeps the API key completely hidden from the browser.
 
-const MAP_SIZE  = '800x450';   // 16:9 for aspect-video containers
-const MAP_SCALE = '2';         // Retina / HDPI
+const MAP_SIZE  = '640x260';   // Panoramic 2.46:1 — better for long driving routes
+const MAP_SCALE = '2';         // Retina / HDPI — fixes blurriness
 
-// Validate a marker lat,lng string — no arbitrary injection.
+// Validate a bare lat,lng coordinate string
 function isValidCoord(s: string): boolean {
   return /^-?\d{1,3}\.?\d{0,8},-?\d{1,3}\.?\d{0,8}$/.test(s);
 }
 
+// Validate a marker param (may have label/color prefix before the coordinate)
 function isValidMarker(m: string): boolean {
   return isValidCoord(m.split('|').pop() ?? '');
 }
@@ -47,7 +48,7 @@ function encodePoly(pts: [number, number][]): string {
   return out;
 }
 
-// Ramer-Douglas-Peucker simplification (degree units)
+// Ramer–Douglas–Peucker (in degree units; 0.00001° ≈ 1m)
 function ptLineDist([x, y]: [number, number], [x1, y1]: [number, number], [x2, y2]: [number, number]): number {
   const dx = x2 - x1, dy = y2 - y1;
   if (!dx && !dy) return Math.hypot(x - x1, y - y1);
@@ -70,10 +71,12 @@ function rdp(pts: [number, number][], eps: number): [number, number][] {
 }
 
 /**
- * Decode → simplify (RDP) → re-encode so the polyline has ≤ maxPts vertices.
- * Adaptive tolerance doubles until point count is under the limit.
+ * Decode → simplify (RDP) → re-encode so the polyline has at most maxPts vertices.
+ * Adaptive tolerance: doubles until point count is under the limit.
+ * maxPts=60 keeps each encoded segment ≤ ~300 chars — well within URL limits
+ * even for a day with 8 segments.
  */
-function simplifyPoly(enc: string, maxPts = 100): string {
+function simplifyPoly(enc: string, maxPts = 60): string {
   const raw = decodePoly(enc);
   if (raw.length <= maxPts) return enc;
   let eps = 0.00005;
@@ -86,9 +89,9 @@ function simplifyPoly(enc: string, maxPts = 100): string {
 }
 
 /**
- * Encode a polyline for use in a Static Maps URL `enc:` value.
- * Only the pipe character needs escaping (it's the path option separator).
- * Other special chars in base-63 encoding are safe in Google's path parser.
+ * Encode a polyline for the Static Maps `enc:` prefix.
+ * Only | and \ conflict with Google's path option syntax — everything else
+ * in the base-63 charset can be passed through raw.
  */
 function safePolyEncode(enc: string): string {
   return enc.replace(/\|/g, '%7C').replace(/\\/g, '%5C');
@@ -115,6 +118,7 @@ export async function GET(req: NextRequest) {
     `size=${MAP_SIZE}`,
     `scale=${MAP_SCALE}`,
     `maptype=${maptype}`,
+    // NO zoom= parameter: let Google auto-fit all markers + paths
   ];
 
   // ── Markers ────────────────────────────────────────────────────────────────
@@ -131,29 +135,51 @@ export async function GET(req: NextRequest) {
     }
   });
 
+  // ── Force viewport to include start & end (visible= parameter) ─────────────
+  // Even without an explicit zoom, this ensures Google never crops the
+  // origin or destination out of frame — critical for long-distance routes.
+  if (rawMarkers.length >= 2) {
+    const firstCoord = rawMarkers[0].split('|').pop() ?? rawMarkers[0];
+    const lastCoord  = rawMarkers[rawMarkers.length - 1].split('|').pop() ?? rawMarkers[rawMarkers.length - 1];
+    if (isValidCoord(firstCoord) && isValidCoord(lastCoord) && firstCoord !== lastCoord) {
+      // Two separate visible= params (cleaner than pipe-joining for lat,lng values)
+      parts.push(`visible=${firstCoord}`);
+      parts.push(`visible=${lastCoord}`);
+    }
+  }
+
   // ── Encoded polyline paths ─────────────────────────────────────────────────
   const rawPolylines = sp.getAll('p');
   for (const poly of rawPolylines) {
-    const simplified = simplifyPoly(poly, 100);
-    // Use safe encoding: only escape | and \ which conflict with path syntax
+    // Simplify to ≤60 points — prevents URL overflow even for 781km+ routes
+    const simplified = simplifyPoly(poly, 60);
     parts.push(`path=color:0x4285F4ff|weight:5|enc:${safePolyEncode(simplified)}`);
   }
 
-  // ── Straight-line fallback ─────────────────────────────────────────────────
-  // When no encoded polylines are available but we have ≥2 markers, draw a
-  // dashed straight-line path between them so the route is always visible.
+  // ── Straight-line fallback (no polylines available) ────────────────────────
   if (rawPolylines.length === 0 && rawMarkers.length >= 2) {
-    const coords = rawMarkers
-      .map(m => m.split('|').pop() ?? m)
-      .filter(isValidCoord);
+    const coords = rawMarkers.map(m => m.split('|').pop() ?? m).filter(isValidCoord);
     if (coords.length >= 2) {
-      // One path connecting all waypoints in sequence
       parts.push(`path=color:0x4285F4aa|weight:4|${coords.join('|')}`);
     }
   }
 
   parts.push(`key=${key}`);
-  const googleUrl = `https://maps.googleapis.com/maps/api/staticmap?${parts.join('&')}`;
+  let googleUrl = `https://maps.googleapis.com/maps/api/staticmap?${parts.join('&')}`;
+
+  // ── URL safety net: if still too long, drop polylines and use straight line ─
+  // Google Static Maps enforces an ~8192-char URL limit. Exceeding it returns
+  // a 400 error or silently drops trailing parameters (losing the endpoint).
+  const URL_LIMIT = 7800;
+  if (googleUrl.length > URL_LIMIT) {
+    console.warn(`[StaticMap] URL too long (${googleUrl.length} chars) — falling back to straight-line`);
+    const safeBase = parts.filter(p => !p.startsWith('path='));
+    const coords   = rawMarkers.map(m => m.split('|').pop() ?? m).filter(isValidCoord);
+    if (coords.length >= 2) {
+      safeBase.splice(safeBase.length - 1, 0, `path=color:0x4285F4aa|weight:4|${coords.join('|')}`);
+    }
+    googleUrl = `https://maps.googleapis.com/maps/api/staticmap?${safeBase.join('&')}`;
+  }
 
   try {
     const res = await fetch(googleUrl, { cache: 'default' });

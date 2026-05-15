@@ -394,7 +394,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
       {/* ── Route preview map ── */}
       {showMap && hasPlaces && prevActivity.place?.lat != null && nextActivity.place?.lat != null && (
         <div className="mx-4 mt-1.5 mb-0.5 rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
-          style={{ height: 160 }}>
+          style={{ aspectRatio: '640/260' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={buildMapUrl(
