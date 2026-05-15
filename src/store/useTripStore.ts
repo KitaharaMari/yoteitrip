@@ -186,7 +186,9 @@ export const useTripStore = create<TripState>()(
               trips.unshift(moved);
             }
           }
-          return { trips };
+          // Treat pin/unpin as a manual-save event so the new order survives
+          // cloud sync on reload (cloudManualTs vs localManualTs comparison).
+          return { trips, lastManualSave: timestamp() };
         }),
 
       reorderTrips: (fromIdx, toIdx) =>
@@ -194,7 +196,9 @@ export const useTripStore = create<TripState>()(
           const trips = [...s.trips];
           const [moved] = trips.splice(fromIdx, 1);
           trips.splice(toIdx, 0, moved);
-          return { trips };
+          // Treat drag-reorder as a manual-save event so the new order wins
+          // over stale cloud data on the next reload / other-device open.
+          return { trips, lastManualSave: timestamp() };
         }),
 
       // ── Per-trip operations ────────────────────────────────────────────────
