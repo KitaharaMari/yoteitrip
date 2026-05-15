@@ -16,13 +16,14 @@ interface Props {
   isLatest?: boolean;
 }
 
-// Build the Static Maps proxy URL for a route preview
+// Build the Static Maps proxy URL for a single-segment route preview
 function buildMapUrl(
   prevLat: number, prevLng: number,
   nextLat: number, nextLng: number,
   polyline?: string,
 ): string {
   const p = new URLSearchParams();
+  p.set('t', 'hybrid');
   p.append('m', `${prevLat.toFixed(6)},${prevLng.toFixed(6)}`);
   p.append('m', `${nextLat.toFixed(6)},${nextLng.toFixed(6)}`);
   if (polyline) p.append('p', polyline);

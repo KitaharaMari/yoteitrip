@@ -60,7 +60,7 @@ export function computeDayStats(day: Day, tripCurrency: string): DayStats {
   return { drivingKm, activityCost, fuelCost, totalCost: activityCost + fuelCost, transitGroups, places };
 }
 
-// ── Static Maps URL for a full day ────────────────────────────────────────────
+// ── Static Maps URL for a full day (hybrid satellite + blue route) ────────────
 function buildDayMapUrl(day: Day): string | null {
   const primary = day.activities.filter((a) => !a.isBackup);
   const markers: string[] = [];
@@ -78,6 +78,7 @@ function buildDayMapUrl(day: Day): string | null {
 
   if (markers.length === 0) return null;
   const p = new URLSearchParams();
+  p.set('t', 'hybrid');
   for (const m of markers.slice(0, 15)) p.append('m', m);
   for (const poly of polylines.slice(0, 8)) p.append('p', poly);
   return `/api/staticmap?${p.toString()}`;
