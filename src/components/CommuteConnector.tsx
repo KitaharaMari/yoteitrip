@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Activity } from '@/types';
 import { useTripStore } from '@/store/useTripStore';
 import { useTransitRoute, parseFare, type TravelMode, type TransitStep } from '@/hooks/useTransitRoute';
@@ -13,6 +13,20 @@ interface Props {
   prevActivity: Activity;
   nextActivity: Activity;
   dayId: string;
+  isLatest?: boolean;
+}
+
+// Build the Static Maps proxy URL for a route preview
+function buildMapUrl(
+  prevLat: number, prevLng: number,
+  nextLat: number, nextLng: number,
+  polyline?: string,
+): string {
+  const p = new URLSearchParams();
+  p.append('m', `${prevLat.toFixed(6)},${prevLng.toFixed(6)}`);
+  p.append('m', `${nextLat.toFixed(6)},${nextLng.toFixed(6)}`);
+  if (polyline) p.append('p', polyline);
+  return `/api/staticmap?${p.toString()}`;
 }
 
 function toMin(t: string): number {
@@ -101,7 +115,7 @@ function StepList({ steps, fareText }: { steps: TransitStep[]; fareText?: string
   );
 }
 
-export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
+export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest = false }: Props) {
   const updateActivity = useTripStore((s) => s.updateActivity);
   const mapsLoaded     = useMapsLoaded();
   // Initialize from the day's stored travel mode; sync whenever it changes.
@@ -113,11 +127,35 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
   const [mode, setMode]         = useState<TravelMode>(dayTravelMode);
   const [expanded, setExpanded] = useState(false);
 
+  // ── hasPlaces — needed early for effects ──────────────────────────────────
+  const hasPlaces = !!(prevActivity.place?.lat && nextActivity.place?.lat);
+
+  // ── Route preview map ──────────────────────────────────────────────────────
+  const [showMap, setShowMap] = useState(false);
+  const userClosedMap = useRef(false);
+
   // Sync when the user changes the day-level mode toggle
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMode(dayTravelMode);
   }, [dayTravelMode]);
+
+  // Auto-open map when both places are filled and this is the latest route
+  useEffect(() => {
+    if (hasPlaces && isLatest && !userClosedMap.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowMap(true);
+    }
+  }, [hasPlaces, isLatest]);
+
+  // Auto-collapse when a new activity is added (this is no longer the latest)
+  useEffect(() => {
+    if (!isLatest) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setShowMap(false);
+      userClosedMap.current = false;
+    }
+  }, [isLatest]);
 
   // Departure time = end of previous activity (start + duration)
   const prevEndHHMM  = toTime(toMin(prevActivity.startTime) + prevActivity.duration);
@@ -189,7 +227,6 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
     updateActivity,
   ]);
 
-  const hasPlaces = !!(prevActivity.place?.lat && nextActivity.place?.lat);
   const hasRoute  = !!route;
 
   // Show timezone warning when both timezones are known and differ by ≥1h
@@ -311,7 +348,24 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
           );
         })()}
 
-        {/* Expand/collapse */}
+        {/* Map toggle button */}
+        {hasPlaces && (
+          <button
+            onClick={() => {
+              const next = !showMap;
+              userClosedMap.current = !next;
+              setShowMap(next);
+            }}
+            className={`text-[11px] flex-none transition-colors leading-none ${
+              showMap ? 'opacity-90' : 'opacity-25 hover:opacity-60'
+            }`}
+            title={showMap ? '收起路线图' : '查看路线图'}
+          >
+            🗺️
+          </button>
+        )}
+
+        {/* Expand/collapse transit steps */}
         {hasSteps && (
           <button
             onClick={() => setExpanded(v => !v)}
@@ -335,6 +389,26 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId }: Props) {
           </a>
         )}
       </div>
+
+      {/* ── Route preview map ── */}
+      {showMap && hasPlaces && prevActivity.place?.lat != null && nextActivity.place?.lat != null && (
+        <div className="mx-4 mt-1.5 mb-0.5 rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
+          style={{ height: 160 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={buildMapUrl(
+              prevActivity.place.lat,
+              prevActivity.place.lng!,
+              nextActivity.place.lat,
+              nextActivity.place.lng!,
+              route?.overviewPolyline ?? nextActivity.commutePolyline,
+            )}
+            alt="路线预览"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
 
       {/* ── Timezone change alert ── */}
       {tzWarning && (

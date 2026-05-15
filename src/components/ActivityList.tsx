@@ -201,6 +201,7 @@ export function ActivityList({ dayId, activities, originPlace, originTime, onOpe
                               prevActivity={primaryActivities[index - 1]}
                               nextActivity={activity}
                               dayId={dayId}
+                              isLatest={index === primaryActivities.length - 1}
                             />
                           )}
 
