@@ -18,13 +18,19 @@ const CATEGORY_META: Record<WishlistCategory, { icon: string; labelKey: string; 
 const CATEGORY_ORDER: WishlistCategory[] = ['RESTAURANT', 'ATTRACTION', 'BACKUP'];
 const FILTER_OPTIONS = ['ALL', ...CATEGORY_ORDER] as const;
 type FilterOption = typeof FILTER_OPTIONS[number];
-type SortOption   = 'default' | 'name' | 'category';
+type SortOption   = 'default' | 'name' | 'category' | 'addedAt' | 'country';
 
-const SORT_LABELS: Record<SortOption, string> = {
-  default:  '默认',
-  name:     '名称',
-  category: '类型',
+const SORT_KEY: Record<SortOption, string> = {
+  default:  'wishlist.sortDefault',
+  name:     'wishlist.sortName',
+  category: 'wishlist.sortCategory',
+  addedAt:  'wishlist.sortAddedAt',
+  country:  'wishlist.sortCountry',
 };
+
+function extractCountry(address: string): string {
+  return address.split(',').pop()?.trim() ?? '';
+}
 
 interface Props {
   isOpen: boolean;
@@ -134,6 +140,8 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
   const sorted   = [...filtered].sort((a, b) => {
     if (sort === 'name')     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     if (sort === 'category') return CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category);
+    if (sort === 'addedAt')  return (b.addedAt ?? '').localeCompare(a.addedAt ?? '');
+    if (sort === 'country')  return extractCountry(a.address).localeCompare(extractCountry(b.address));
     return 0;
   });
 
@@ -152,22 +160,17 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
         )}
       </AnimatePresence>
 
-      {/* ── Sheet ── */}
+      {/* ── Sheet (slides from top) ── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             key="wishlist-drawer"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            initial={{ y: '-100%' }} animate={{ y: 0 }} exit={{ y: '-100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col relative overflow-hidden"
+            className="fixed inset-x-0 top-0 z-50 bg-white rounded-b-3xl shadow-2xl max-h-[85vh] flex flex-col relative overflow-hidden"
           >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1 flex-none">
-              <div className="w-10 h-1 rounded-full bg-gray-200" />
-            </div>
-
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-3 pb-2 flex-none">
+            <div className="flex items-center justify-between px-5 pt-5 pb-2 flex-none">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">{t('wishlist.title')}</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5">
@@ -180,7 +183,7 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
                   <button
                     onClick={handleSave}
                     disabled={saveState === 'saving'}
-                    title="保存种草名单到云端"
+                    title="Save wishlist to cloud"
                     className={`w-8 h-8 flex items-center justify-center rounded-full text-sm transition-all ${
                       saveState === 'saved' ? 'bg-green-50 text-green-500'
                       : saveState === 'saving' ? 'bg-gray-50 text-gray-300'
@@ -231,20 +234,20 @@ export function WishlistDrawer({ isOpen, onClose, activeDayId, baseLocation }: P
                   onClick={() => setShowSortMenu((v) => !v)}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
                 >
-                  ↕ {SORT_LABELS[sort]}
+                  ↕ {t(SORT_KEY[sort])}
                 </button>
                 {showSortMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-                    <div className="absolute right-0 top-9 z-20 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden min-w-[96px]">
-                      {(Object.keys(SORT_LABELS) as SortOption[]).map((s) => (
+                    <div className="absolute right-0 top-9 z-20 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden min-w-[108px]">
+                      {(Object.keys(SORT_KEY) as SortOption[]).map((s) => (
                         <button key={s}
                           onClick={() => { setSort(s); setShowSortMenu(false); }}
                           className={`flex items-center justify-between w-full px-4 py-2.5 text-xs text-left transition-colors ${
                             sort === s ? 'bg-gray-50 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          {SORT_LABELS[s]}
+                          {t(SORT_KEY[s])}
                           {sort === s && <span className="text-emerald-500">✓</span>}
                         </button>
                       ))}

@@ -11,6 +11,7 @@ export interface WishlistItem {
   lng?: number;
   category: WishlistCategory;
   note?: string;
+  addedAt?: string;  // ISO timestamp for sort-by-time
 }
 
 export type SceneTag = 'INDOOR' | 'REST' | 'LATE_START';
@@ -93,4 +94,5 @@ export interface Trip {
   coverPhotoUrl?: string;        // Google Maps photo used as card cover
   createdAt: string;
   updatedAt: string;
+  pinnedAt?: string;             // ISO timestamp when pinned; absent = not pinned
 }

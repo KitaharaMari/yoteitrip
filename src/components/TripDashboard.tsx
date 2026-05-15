@@ -628,7 +628,6 @@ function CoverPickerModal({ trip, onClose }: { trip: Trip; onClose: () => void }
                           src={url}
                           alt=""
                           className="w-full h-full object-cover"
-                          crossOrigin="anonymous"
                         />
                         {selectedMapUrl === url && (
                           <div className="absolute inset-0 bg-emerald-500/25 flex items-center justify-center">
@@ -907,9 +906,11 @@ function DeleteConfirmModal({ trip, onConfirm, onCancel }: {
 
 // ── TripDashboard ─────────────────────────────────────────────────────────────
 export function TripDashboard() {
-  const trips      = useTripStore((s) => s.trips);
-  const deleteTrip = useTripStore((s) => s.deleteTrip);
-  const t          = useT();
+  const trips        = useTripStore((s) => s.trips);
+  const deleteTrip   = useTripStore((s) => s.deleteTrip);
+  const pinTrip      = useTripStore((s) => s.pinTrip);
+  const reorderTrips = useTripStore((s) => s.reorderTrips);
+  const t            = useT();
 
   const [showNewModal, setShowNewModal]         = useState(false);
   const [deletingTrip, setDeletingTrip]         = useState<Trip | null>(null);
@@ -917,6 +918,77 @@ export function TripDashboard() {
   const [showWishlist, setShowWishlist]         = useState(false);
   const [showAuthModal, setShowAuthModal]       = useState(false);
   const [showOnboarding, setShowOnboarding]     = useState(false);
+
+  // ── Long-press drag & pin state ────────────────────────────────────────────
+  const [contextId, setContextId]   = useState<string | null>(null);
+  const [drag, setDrag]             = useState<{ id: string; tx: number; ty: number } | null>(null);
+  const cardRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pressRef    = useRef<{ x: number; y: number; id: string; idx: number } | null>(null);
+  const lpTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contextRef  = useRef<string | null>(null);  // sync ref for callbacks
+
+  const setCtx = (id: string | null) => { contextRef.current = id; setContextId(id); };
+
+  const findDropIdx = useCallback((x: number, y: number, excludeId: string): number => {
+    let bestIdx = -1, bestDist = Infinity;
+    trips.forEach((trip, i) => {
+      if (trip.id === excludeId) return;
+      const el = cardRefsMap.current.get(trip.id);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dist = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    });
+    return bestIdx;
+  }, [trips]);
+
+  const startDragMode = useCallback((id: string, fromIdx: number, startX: number, startY: number) => {
+    setDrag({ id, tx: 0, ty: 0 });
+    const preventScroll = (e: TouchEvent) => e.preventDefault();
+    document.addEventListener('touchmove', preventScroll, { passive: false });
+    const onMove = (e: PointerEvent) => {
+      setDrag({ id, tx: e.clientX - startX, ty: e.clientY - startY });
+    };
+    const onUp = (e: PointerEvent) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('touchmove', preventScroll);
+      const toIdx = findDropIdx(e.clientX, e.clientY, id);
+      if (toIdx >= 0 && toIdx !== fromIdx) reorderTrips(fromIdx, toIdx);
+      setDrag(null);
+      pressRef.current = null;
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }, [findDropIdx, reorderTrips]);
+
+  const onCardPointerDown = useCallback((e: React.PointerEvent, id: string, idx: number) => {
+    if (contextRef.current !== null) return;
+    pressRef.current = { x: e.clientX, y: e.clientY, id, idx };
+    lpTimer.current = setTimeout(() => {
+      navigator.vibrate?.(30);
+      setCtx(id);
+    }, 500);
+  }, []);
+
+  const onCardPointerMove = useCallback((e: React.PointerEvent, id: string, idx: number) => {
+    if (!pressRef.current || pressRef.current.id !== id) return;
+    const dist = Math.hypot(e.clientX - pressRef.current.x, e.clientY - pressRef.current.y);
+    if (dist > 10) {
+      if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+      if (contextRef.current === id) {
+        setCtx(null);
+        startDragMode(id, idx, pressRef.current.x, pressRef.current.y);
+      } else if (contextRef.current === null) {
+        startDragMode(id, idx, pressRef.current.x, pressRef.current.y);
+        pressRef.current = null;
+      }
+    }
+  }, [startDragMode]);
+
+  const onCardPointerUp = useCallback(() => {
+    if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !localStorage.getItem('yoteitrip-onboarded')) {
@@ -960,10 +1032,10 @@ export function TripDashboard() {
               <UserMenu onOpenAuth={() => setShowAuthModal(true)} />
               <button
                 onClick={() => setShowWishlist(true)}
-                title={t('dashboard.wishlist')}
-                className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-2xl text-sm text-gray-600 hover:border-gray-400 transition-colors shadow-sm"
               >
-                ✨
+                <span className="text-base leading-none">⭐</span>
+                <span className="font-medium">{t('dashboard.wishlist')}</span>
               </button>
               <button
                 onClick={() => setShowNewModal(true)}
@@ -989,39 +1061,87 @@ export function TripDashboard() {
             </button>
           </div>
         ) : (
-          <motion.div
-            className="grid grid-cols-2 gap-3 pb-12"
-            initial="hidden"
-            animate="show"
-            variants={{
-              hidden: {},
-              show: { transition: { staggerChildren: 0.06 } },
-            }}
-          >
-            <AnimatePresence mode="popLayout">
-              {trips.map((trip, i) => (
-                <TripCard
-                  key={trip.id}
-                  trip={trip}
-                  index={i}
-                  onDelete={handleDelete}
-                  onChangeCover={setCoverPickerTrip}
-                />
-              ))}
-            </AnimatePresence>
-
-            {/* "+ New" ghost card */}
-            <motion.button
-              layout
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => setShowNewModal(true)}
-              className="rounded-3xl border-2 border-dashed border-gray-200 h-[7.5rem] flex flex-col items-center justify-center gap-1.5 text-gray-300 hover:border-gray-400 hover:text-gray-400 active:scale-95 transition-all"
+          <>
+            {/* Global backdrop to dismiss context menu */}
+            {contextId && (
+              <div className="fixed inset-0 z-10" onClick={() => setCtx(null)} />
+            )}
+            <motion.div
+              className="grid grid-cols-2 gap-3 pb-12"
+              initial="hidden"
+              animate="show"
+              variants={{
+                hidden: {},
+                show: { transition: { staggerChildren: 0.06 } },
+              }}
             >
-              <span className="text-2xl leading-none">+</span>
-              <span className="text-[11px] font-medium">{t('dashboard.ghostCard')}</span>
-            </motion.button>
-          </motion.div>
+              <AnimatePresence mode="popLayout">
+                {trips.map((trip, i) => (
+                  <div
+                    key={trip.id}
+                    ref={(el) => { if (el) cardRefsMap.current.set(trip.id, el); else cardRefsMap.current.delete(trip.id); }}
+                    className="relative"
+                    style={drag?.id === trip.id ? {
+                      transform: `translate(${drag.tx}px, ${drag.ty}px)`,
+                      zIndex: 50,
+                      opacity: 0.92,
+                      transition: 'none',
+                      pointerEvents: 'none',
+                    } : { transition: 'transform 0.2s' }}
+                    onPointerDown={(e) => onCardPointerDown(e, trip.id, i)}
+                    onPointerMove={(e) => onCardPointerMove(e, trip.id, i)}
+                    onPointerUp={onCardPointerUp}
+                    onPointerLeave={onCardPointerUp}
+                  >
+                    {/* Long-press context overlay */}
+                    {contextId === trip.id && (
+                      <div
+                        className="absolute inset-0 z-10 bg-black/40 rounded-3xl flex items-center justify-center gap-2"
+                        onClick={() => setCtx(null)}
+                      >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); pinTrip(trip.id, !trip.pinnedAt); setCtx(null); }}
+                          className="flex items-center gap-1 px-3 py-2 bg-white/90 text-gray-800 rounded-xl text-[11px] font-semibold shadow-sm active:scale-95 transition-all"
+                        >
+                          {trip.pinnedAt ? '× 取消置顶' : '📌 置顶'}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setCtx(null); startDragMode(trip.id, i, 0, 0); }}
+                          className="flex items-center gap-1 px-3 py-2 bg-white/90 text-gray-600 rounded-xl text-[11px] font-medium shadow-sm active:scale-95 transition-all"
+                        >
+                          ⇅ 拖动
+                        </button>
+                      </div>
+                    )}
+                    {/* Pinned indicator */}
+                    {trip.pinnedAt && contextId !== trip.id && (
+                      <span className="absolute top-2 right-2 z-10 text-xs bg-white/80 rounded-full w-5 h-5 flex items-center justify-center shadow-sm pointer-events-none">
+                        📌
+                      </span>
+                    )}
+                    <TripCard
+                      trip={trip}
+                      index={i}
+                      onDelete={handleDelete}
+                      onChangeCover={setCoverPickerTrip}
+                    />
+                  </div>
+                ))}
+              </AnimatePresence>
+
+              {/* "+ New" ghost card */}
+              <motion.button
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                onClick={() => setShowNewModal(true)}
+                className="rounded-3xl border-2 border-dashed border-gray-200 h-[7.5rem] flex flex-col items-center justify-center gap-1.5 text-gray-300 hover:border-gray-400 hover:text-gray-400 active:scale-95 transition-all"
+              >
+                <span className="text-2xl leading-none">+</span>
+                <span className="text-[11px] font-medium">{t('dashboard.ghostCard')}</span>
+              </motion.button>
+            </motion.div>
+          </>
         )}
       </div>
 

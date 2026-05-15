@@ -19,6 +19,8 @@ interface TripState {
   renameTrip: (id: string, title: string) => void;
   setTripCurrency: (currency: string) => void;
   setCurrentTrip: (id: string) => void;
+  pinTrip: (id: string, pin: boolean) => void;
+  reorderTrips: (fromIdx: number, toIdx: number) => void;
 
   // ── Per-trip operations (all act on currentTripId) ────────────────────────
   addDay: () => void;
@@ -169,6 +171,30 @@ export const useTripStore = create<TripState>()(
           const found = s.trips.find((t) => t.id === id);
           if (!found) return {};
           return { currentTripId: id, trip: found };
+        }),
+
+      pinTrip: (id, pin) =>
+        set((s) => {
+          const trips = s.trips.map((t) =>
+            t.id === id ? { ...t, pinnedAt: pin ? timestamp() : undefined } : t,
+          );
+          // Move pinned trip to front
+          if (pin) {
+            const idx = trips.findIndex((t) => t.id === id);
+            if (idx > 0) {
+              const [moved] = trips.splice(idx, 1);
+              trips.unshift(moved);
+            }
+          }
+          return { trips };
+        }),
+
+      reorderTrips: (fromIdx, toIdx) =>
+        set((s) => {
+          const trips = [...s.trips];
+          const [moved] = trips.splice(fromIdx, 1);
+          trips.splice(toIdx, 0, moved);
+          return { trips };
         }),
 
       // ── Per-trip operations ────────────────────────────────────────────────
@@ -407,7 +433,7 @@ export const useTripStore = create<TripState>()(
 
       // ── Wishlist ───────────────────────────────────────────────────────────
       addToWishlist: (item) =>
-        set((s) => ({ wishlist: [...s.wishlist, { ...item, id: uid() }] })),
+        set((s) => ({ wishlist: [...s.wishlist, { ...item, id: uid(), addedAt: timestamp() }] })),
 
       removeFromWishlist: (id) =>
         set((s) => ({ wishlist: s.wishlist.filter((i) => i.id !== id) })),
