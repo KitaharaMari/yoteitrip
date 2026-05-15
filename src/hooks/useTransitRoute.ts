@@ -244,6 +244,7 @@ export function useTransitRoute(
             const r: RouteResult = {
               totalMinutes: totalMin, totalText: leg.duration?.text ?? `${totalMin}分钟`,
               steps: buildStepsFromSDK(leg), totalMeters: leg.distance?.value,
+              overviewPolyline: response.routes[0].overview_polyline ?? undefined,
               mapsUrl, usedMode: 'WALKING',
             };
             if (cacheKey) cache.set(cacheKey, r);
@@ -327,7 +328,7 @@ export function useTransitRoute(
             const r: RouteResult = {
               totalMinutes: totalMin, totalText: leg2.duration?.text ?? `${totalMin}分钟`,
               steps: buildStepsFromSDK(leg2), totalMeters: leg2.distance?.value,
-              // SDK doesn't expose encoded overview_polyline — polyline omitted here
+              overviewPolyline: res2.routes[0].overview_polyline ?? undefined,
               mapsUrl, usedMode: 'DRIVING',
             };
             const drivingKey = fromId && toId ? `DRIVING:${fromId}:${toId}` : null;
@@ -384,12 +385,13 @@ export function useTransitRoute(
           : `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${toLat},${toLng}&travelmode=driving`;
 
         const r: RouteResult = {
-          totalMinutes: totalMin,
-          totalText:    leg.duration?.text ?? `${totalMin}分钟`,
-          steps:        buildStepsFromSDK(leg),
-          totalMeters:  leg.distance?.value,
+          totalMinutes:     totalMin,
+          totalText:        leg.duration?.text ?? `${totalMin}分钟`,
+          steps:            buildStepsFromSDK(leg),
+          totalMeters:      leg.distance?.value,
+          overviewPolyline: response.routes[0].overview_polyline ?? undefined,
           mapsUrl,
-          usedMode:     'DRIVING',
+          usedMode:         'DRIVING',
         };
         // Store under DRIVING key so retrying TRANSIT doesn't hit this fallback
         const drivingKey = fromId && toId ? `DRIVING:${fromId}:${toId}` : null;

@@ -7,9 +7,13 @@ import { NextRequest, NextResponse } from 'next/server';
 const MAP_SIZE  = '800x450';   // 16:9 for aspect-video containers
 const MAP_SCALE = '2';         // Retina / HDPI
 
-// Validate a marker string — only allow lat/lng coordinates (no injection).
+// Validate a marker lat,lng string — no arbitrary injection.
+function isValidCoord(s: string): boolean {
+  return /^-?\d{1,3}\.?\d{0,8},-?\d{1,3}\.?\d{0,8}$/.test(s);
+}
+
 function isValidMarker(m: string): boolean {
-  return /^(label:[A-Za-z0-9]\|)?-?\d{1,3}\.?\d{0,8},-?\d{1,3}\.?\d{0,8}$/.test(m.split('|').pop() ?? '');
+  return isValidCoord(m.split('|').pop() ?? '');
 }
 
 // ── Polyline codec (RFC-compliant, no external deps) ─────────────────────────
@@ -43,7 +47,7 @@ function encodePoly(pts: [number, number][]): string {
   return out;
 }
 
-// Ramer-Douglas-Peucker simplification (in degree units — ~0.00001° ≈ 1m)
+// Ramer-Douglas-Peucker simplification (degree units)
 function ptLineDist([x, y]: [number, number], [x1, y1]: [number, number], [x2, y2]: [number, number]): number {
   const dx = x2 - x1, dy = y2 - y1;
   if (!dx && !dy) return Math.hypot(x - x1, y - y1);
@@ -66,18 +70,28 @@ function rdp(pts: [number, number][], eps: number): [number, number][] {
 }
 
 /**
- * Decode → simplify → re-encode a polyline so it has at most `maxPts` vertices.
- * Adaptive tolerance: doubles until the point count is under the limit.
+ * Decode → simplify (RDP) → re-encode so the polyline has ≤ maxPts vertices.
+ * Adaptive tolerance doubles until point count is under the limit.
  */
 function simplifyPoly(enc: string, maxPts = 100): string {
-  let pts = decodePoly(enc);
-  if (pts.length <= maxPts) return enc;
-  let eps = 0.00005;  // ~5m initial tolerance
+  const raw = decodePoly(enc);
+  if (raw.length <= maxPts) return enc;
+  let eps = 0.00005;
+  let pts = raw;
   while (pts.length > maxPts && eps < 0.1) {
-    pts = rdp(decodePoly(enc), eps);
+    pts = rdp(raw, eps);
     eps *= 2;
   }
   return encodePoly(pts);
+}
+
+/**
+ * Encode a polyline for use in a Static Maps URL `enc:` value.
+ * Only the pipe character needs escaping (it's the path option separator).
+ * Other special chars in base-63 encoding are safe in Google's path parser.
+ */
+function safePolyEncode(enc: string): string {
+  return enc.replace(/\|/g, '%7C').replace(/\\/g, '%5C');
 }
 
 export async function GET(req: NextRequest) {
@@ -91,7 +105,7 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams;
 
-  // Validate map type — only allow known values
+  // Validate map type
   const rawType = sp.get('t') ?? 'hybrid';
   const maptype = ['roadmap', 'satellite', 'terrain', 'hybrid'].includes(rawType)
     ? rawType
@@ -103,27 +117,39 @@ export async function GET(req: NextRequest) {
     `maptype=${maptype}`,
   ];
 
-  // Markers — first and last get a distinct style; intermediates are small dots
+  // ── Markers ────────────────────────────────────────────────────────────────
   const rawMarkers = sp.getAll('m').filter(isValidMarker);
   rawMarkers.forEach((m, idx) => {
     if (rawMarkers.length === 1) {
       parts.push(`markers=size:mid|color:0x47BB8E|${m}`);
     } else if (idx === 0) {
-      // Start: green mid marker
       parts.push(`markers=size:mid|color:0x47BB8E|label:S|${m}`);
     } else if (idx === rawMarkers.length - 1) {
-      // End: red mid marker
       parts.push(`markers=size:mid|color:red|label:E|${m}`);
     } else {
-      // Intermediate: small white dot
       parts.push(`markers=size:small|color:white|${m}`);
     }
   });
 
-  // Paths — simplify to keep URL short, render as blue route line
-  for (const poly of sp.getAll('p')) {
+  // ── Encoded polyline paths ─────────────────────────────────────────────────
+  const rawPolylines = sp.getAll('p');
+  for (const poly of rawPolylines) {
     const simplified = simplifyPoly(poly, 100);
-    parts.push(`path=color:0x0077ffff|weight:5|enc:${encodeURIComponent(simplified)}`);
+    // Use safe encoding: only escape | and \ which conflict with path syntax
+    parts.push(`path=color:0x4285F4ff|weight:5|enc:${safePolyEncode(simplified)}`);
+  }
+
+  // ── Straight-line fallback ─────────────────────────────────────────────────
+  // When no encoded polylines are available but we have ≥2 markers, draw a
+  // dashed straight-line path between them so the route is always visible.
+  if (rawPolylines.length === 0 && rawMarkers.length >= 2) {
+    const coords = rawMarkers
+      .map(m => m.split('|').pop() ?? m)
+      .filter(isValidCoord);
+    if (coords.length >= 2) {
+      // One path connecting all waypoints in sequence
+      parts.push(`path=color:0x4285F4aa|weight:4|${coords.join('|')}`);
+    }
   }
 
   parts.push(`key=${key}`);
