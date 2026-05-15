@@ -116,8 +116,10 @@ function buildRouteSummary(day: Day): {
   };
 }
 
-// ── Trip-wide gear advice ─────────────────────────────────────────────────────
-function tripGearAdvice(days: Day[], weatherMap: Record<string, WeatherData | null>): string {
+// ── Trip-wide gear advice (fully i18n) ───────────────────────────────────────
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
+function tripGearAdvice(days: Day[], weatherMap: Record<string, WeatherData | null>, t: TFunc): string {
   const weathers = days.map((d) => weatherMap[d.id]).filter((w): w is WeatherData => w != null);
   if (weathers.length === 0) return '';
 
@@ -127,16 +129,16 @@ function tripGearAdvice(days: Day[], weatherMap: Record<string, WeatherData | nu
   const hasSnow = weathers.some((w) => SNOW_CODES.has(w.weatherCode));
 
   const parts: string[] = [];
-  if      (minTemp < 0)  parts.push('全程严寒，羽绒服+帽子手套必备');
-  else if (minTemp < 5)  parts.push('气温偏低，请备好厚外套与羽绒背心');
-  else if (minTemp < 10) parts.push('早晚寒冷，建议中厚外套');
-  else if (minTemp < 15) parts.push('天气凉爽，轻薄外套备用');
-  else if (minTemp < 20) parts.push('气候宜人，可带薄外套备用');
-  else                   parts.push(`气温 ${minTemp}~${maxTemp}°C，夏日轻便穿搭`);
+  if      (minTemp < 0)  parts.push(t('gear.freezing'));
+  else if (minTemp < 5)  parts.push(t('gear.cold'));
+  else if (minTemp < 10) parts.push(t('gear.chilly'));
+  else if (minTemp < 15) parts.push(t('gear.cool'));
+  else if (minTemp < 20) parts.push(t('gear.mild'));
+  else                   parts.push(t('gear.warm', { min: minTemp, max: maxTemp }));
 
-  if (maxTemp - minTemp > 15) parts.push('昼夜温差大，可叠穿');
-  if (hasSnow)  parts.push('有降雪，防水鞋必备');
-  else if (hasRain) parts.push('多日有雨，携带雨具');
+  if (maxTemp - minTemp > 15) parts.push(t('gear.bigRange'));
+  if (hasSnow)  parts.push(t('gear.snow'));
+  else if (hasRain) parts.push(t('gear.rain'));
 
   return parts.join(' · ');
 }
@@ -151,14 +153,15 @@ function WeatherGearCard({ days, weatherMap }: {
   weatherMap: Record<string, WeatherData | null>;
 }) {
   const lang = useLangStore((s) => s.lang);
+  const t    = useT();
   const daysWithWeather = days.filter((d) => d.date && weatherMap[d.id] != null);
   if (daysWithWeather.length === 0) return null;
 
-  const advice = tripGearAdvice(days, weatherMap);
+  const advice = tripGearAdvice(days, weatherMap, t);
 
   return (
     <div className="mx-4 mt-2 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-medium text-gray-500 mb-2.5">天气 &amp; 穿搭建议</p>
+      <p className="text-[11px] font-medium text-gray-500 mb-2.5">{t('overview.weatherGear')}</p>
 
       {/* Daily weather dots */}
       <div className="flex gap-4 overflow-x-auto no-scrollbar pb-0.5">
@@ -196,6 +199,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const t            = useT();
   const lang         = useLangStore((s) => s.lang);
   const summary      = buildRouteSummary(day);
   const mapUrl       = buildDayMapUrl(day);
@@ -307,7 +311,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={mapUrl}
-                  alt={`${day.label} 路线预览`}
+                  alt={`${day.label} ${t('overview.routeMap')}`}
                   className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -400,9 +404,9 @@ export function TripOverview({ trip }: { trip: Trip }) {
       {/* ── Summary stats ── */}
       <div className="grid grid-cols-3 gap-2 mx-4 mt-4">
         {[
-          { label: t('overview.totalDays'),  value: `${trip.days.length} 天` },
+          { label: t('overview.totalDays'),  value: t('overview.days', { n: trip.days.length }) },
           { label: t('overview.totalKm'),    value: totalDrivingKm > 0 ? `${totalDrivingKm.toFixed(0)} km` : '—' },
-          { label: t('overview.places'),     value: `${totalPlaces} 处` },
+          { label: t('overview.places'),     value: t('overview.placesCount', { n: totalPlaces }) },
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-100 px-2 py-3 flex flex-col items-center gap-1 shadow-sm">
             <span className="text-lg font-bold text-gray-900 leading-none">{value}</span>
@@ -417,7 +421,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
           <span className="text-xs text-gray-500 block mb-2">{t('overview.budget')}</span>
           {totalUserCost > 0 && (
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-gray-400">活动 · 餐饮 · 油费</span>
+              <span className="text-[11px] text-gray-400">{t('overview.activitiesBudget')}</span>
               <span className="text-base font-bold text-gray-900 tabular-nums">
                 {fmt(tripCurrency, totalUserCost)}
               </span>
@@ -426,7 +430,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
           {transitSummary.map(({ currency, amount }) => (
             <div key={currency} className="flex items-center justify-between mt-1">
               <span className="text-[11px] text-gray-400">
-                当地交通{currency !== tripCurrency ? ` (${currency})` : ''}
+                {t('overview.localTransit')}{currency !== tripCurrency ? ` (${currency})` : ''}
               </span>
               <span className="text-sm font-semibold tabular-nums" style={{ color: '#3D5568' }}>
                 {fmt(currency, amount)}

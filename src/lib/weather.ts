@@ -43,23 +43,46 @@ export const RAIN_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,
 export const SNOW_CODES = new Set([71,73,75,77,85,86]);
 export const BAD_CODES  = new Set([...RAIN_CODES, ...SNOW_CODES]);
 
-function decodeWMO(code: number): [string, string] {
-  return WMO[code] ?? ['🌡️', '未知天气'];
+// WMO code → i18n key mapping
+const WMO_KEY: Record<number, string> = {
+  0: 'wmo.sunny',    1: 'wmo.mostlyClear',  2: 'wmo.partlyCloudy', 3: 'wmo.overcast',
+  45: 'wmo.foggy',  48: 'wmo.foggy',
+  51: 'wmo.drizzle', 53: 'wmo.drizzle',     55: 'wmo.drizzle',
+  56: 'wmo.freezingDrizzle', 57: 'wmo.freezingDrizzle',
+  61: 'wmo.rain',   63: 'wmo.rain',         65: 'wmo.heavyRain',
+  66: 'wmo.freezingRain', 67: 'wmo.freezingRain',
+  71: 'wmo.snow',   73: 'wmo.snow',         75: 'wmo.heavySnow',   77: 'wmo.snowGrains',
+  80: 'wmo.showers', 81: 'wmo.showers',     82: 'wmo.heavyShowers',
+  85: 'wmo.snowShowers', 86: 'wmo.snowShowers',
+  95: 'wmo.thunderstorm', 96: 'wmo.thunderstormHail', 99: 'wmo.thunderstormHail',
+};
+
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
+/** Returns the translated WMO weather description for the given code. */
+export function wmoDescT(code: number, t: TFunc): string {
+  return t(WMO_KEY[code] ?? 'wmo.unknown');
 }
 
-export function clothingAdvice(tempMax: number, code: number): string {
+function decodeWMO(code: number): [string, string] {
+  return WMO[code] ?? ['🌡️', 'Unknown'];
+}
+
+export function clothingAdvice(tempMax: number, code: number, t: TFunc): string {
   const rain = RAIN_CODES.has(code);
   const snow = SNOW_CODES.has(code);
   let layer: string;
-  if      (tempMax >= 30) layer = '清凉夏装，做好防晒';
-  else if (tempMax >= 25) layer = '短袖';
-  else if (tempMax >= 20) layer = '薄长袖 / 短袖+外套备用';
-  else if (tempMax >= 15) layer = '轻薄外套 + 长袖';
-  else if (tempMax >= 10) layer = '中厚外套';
-  else if (tempMax >= 5)  layer = '厚外套 + 保暖内层';
-  else                    layer = '羽绒服 + 帽子手套';
-  if (rain) layer += ' · 带伞';
-  if (snow) layer += ' · 防水鞋';
+  if      (tempMax >= 30) layer = t('clothing.veryHot');
+  else if (tempMax >= 25) layer = t('clothing.hot');
+  else if (tempMax >= 20) layer = t('clothing.warm');
+  else if (tempMax >= 15) layer = t('clothing.cool');
+  else if (tempMax >= 10) layer = t('clothing.cold');
+  else if (tempMax >= 5)  layer = t('clothing.chilly');
+  else                    layer = t('clothing.freezing');
+  const extras: string[] = [];
+  if (rain) extras.push(t('clothing.addRain'));
+  if (snow) extras.push(t('clothing.addSnow'));
+  if (extras.length > 0) layer += ' · ' + extras.join(' · ');
   return layer;
 }
 

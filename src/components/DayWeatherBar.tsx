@@ -3,8 +3,9 @@
 import type { Activity, PlaceDetails } from '@/types';
 import { haversineKm } from '@/lib/haversine';
 import { useWeather, useWeatherMap, type WeatherMapItem } from '@/hooks/useWeather';
+import { useT } from '@/hooks/useT';
 import {
-  clothingAdvice, BAD_CODES, RAIN_CODES, SNOW_CODES,
+  clothingAdvice, wmoDescT, BAD_CODES, RAIN_CODES, SNOW_CODES,
   type WeatherData,
 } from '@/lib/weather';
 
@@ -14,8 +15,10 @@ interface Props {
   activities:  Activity[];
 }
 
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
 // ── Long-distance destination alerts ─────────────────────────────────────────
-function buildDestAlerts(origin: WeatherData, dest: WeatherData, destName: string): string[] {
+function buildDestAlerts(origin: WeatherData, dest: WeatherData, destName: string, t: TFunc): string[] {
   const alerts: string[] = [];
   const originBad = BAD_CODES.has(origin.weatherCode);
   const destRain  = RAIN_CODES.has(dest.weatherCode);
@@ -23,36 +26,36 @@ function buildDestAlerts(origin: WeatherData, dest: WeatherData, destName: strin
   const diff      = dest.tempMax - origin.tempMax;
 
   if (!originBad && destRain)
-    alerts.push(`${destName} 有${dest.emoji}${dest.description}，出发时记得带伞`);
+    alerts.push(t('weather.alertDestRain', { dest: destName, desc: `${dest.emoji} ${wmoDescT(dest.weatherCode, t)}` }));
   if (!originBad && destSnow)
-    alerts.push(`${destName} ${dest.emoji}${dest.description}，备好保暖衣物和防滑鞋`);
+    alerts.push(t('weather.alertDestSnow', { dest: destName, desc: `${dest.emoji} ${wmoDescT(dest.weatherCode, t)}` }));
   if (diff <= -8)
-    alerts.push(`${destName} 比出发地冷 ${Math.abs(Math.round(diff))}°C，多带一件外套`);
+    alerts.push(t('weather.alertDestColder', { dest: destName, n: Math.abs(Math.round(diff)) }));
   if (diff >= 8)
-    alerts.push(`${destName} 比出发地高 ${Math.round(diff)}°C，可换轻薄衣物`);
+    alerts.push(t('weather.alertDestWarmer', { dest: destName, n: Math.round(diff) }));
   return alerts;
 }
 
-// ── Intermediate stop alert (threshold lower than long-distance) ──────────────
-function buildStopAlert(origin: WeatherData, stop: WeatherData, stopName: string): string | null {
+// ── Intermediate stop alert ────────────────────────────────────────────────────
+function buildStopAlert(origin: WeatherData, stop: WeatherData, stopName: string, t: TFunc): string | null {
   const originBad = BAD_CODES.has(origin.weatherCode);
   const stopRain  = RAIN_CODES.has(stop.weatherCode);
   const stopSnow  = SNOW_CODES.has(stop.weatherCode);
   const diff      = stop.tempMax - origin.tempMax;
 
   if (!originBad && stopSnow)
-    return `${stopName}：${stop.emoji}${stop.description}，注意保暖防滑`;
+    return t('weather.alertStopSnow', { stop: stopName, desc: `${stop.emoji} ${wmoDescT(stop.weatherCode, t)}` });
   if (!originBad && stopRain)
-    return `${stopName}：${stop.emoji}${stop.description}，建议带雨具`;
+    return t('weather.alertStopRain', { stop: stopName, desc: `${stop.emoji} ${wmoDescT(stop.weatherCode, t)}` });
   if (diff <= -5)
-    return `${stopName}：比出发地低 ${Math.abs(Math.round(diff))}°C，备好外套`;
+    return t('weather.alertStopColder', { stop: stopName, n: Math.abs(Math.round(diff)) });
   if (diff >= 5)
-    return `${stopName}：气温高于出发地 ${Math.round(diff)}°C，注意防暑`;
+    return t('weather.alertStopWarmer', { stop: stopName, n: Math.round(diff) });
   return null;
 }
 
 // ── Single location weather cell ──────────────────────────────────────────────
-function WeatherCell({ w, label }: { w: WeatherData; label?: string }) {
+function WeatherCell({ w, label, t }: { w: WeatherData; label?: string; t: TFunc }) {
   return (
     <div className="flex items-center gap-2 flex-none">
       <span className="text-2xl leading-none">{w.emoji}</span>
@@ -65,7 +68,7 @@ function WeatherCell({ w, label }: { w: WeatherData; label?: string }) {
         <p className="text-xs font-semibold text-sky-900 tabular-nums leading-none">
           {w.tempMin}~{w.tempMax}°C
         </p>
-        <p className="text-[10px] text-sky-500 leading-none mt-0.5">{w.description}</p>
+        <p className="text-[10px] text-sky-500 leading-none mt-0.5">{wmoDescT(w.weatherCode, t)}</p>
       </div>
     </div>
   );
@@ -73,6 +76,7 @@ function WeatherCell({ w, label }: { w: WeatherData; label?: string }) {
 
 // ── DayWeatherBar ─────────────────────────────────────────────────────────────
 export function DayWeatherBar({ date, originPlace, activities }: Props) {
+  const t = useT();
   const primaryActivities = activities.filter((a) => !a.isBackup);
   const originLat = originPlace.lat;
   const originLng = originPlace.lng;
@@ -131,7 +135,7 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
   if (originWeather === 'loading') {
     return (
       <div className="mb-1.5 px-4 py-2.5 rounded-2xl bg-sky-50 text-[11px] text-sky-300 animate-pulse">
-        天气加载中…
+        {t('weather.loading')}
       </div>
     );
   }
@@ -139,7 +143,7 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
   if (!originWeather) {
     return (
       <div className="mb-1.5 px-4 py-2.5 rounded-2xl bg-sky-50 text-[11px] text-sky-400">
-        暂无天气情报
+        {t('weather.noData')}
       </div>
     );
   }
@@ -147,15 +151,15 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
   // Long-distance destination alerts
   const hasDestWeather = longDistance && destWeather !== 'loading' && destWeather !== null;
   const destAlerts = hasDestWeather && destWeather
-    ? buildDestAlerts(originWeather, destWeather as WeatherData, destPlace?.name ?? '目的地')
+    ? buildDestAlerts(originWeather, destWeather as WeatherData, destPlace?.name ?? t('weather.destination'), t)
     : [];
 
-  // Intermediate stop alerts — only for stops whose weather differs significantly
+  // Intermediate stop alerts
   const stopAlerts: string[] = [];
   for (const stop of stopItems) {
     const sw = stopWeathers[stop.key];
-    if (sw == null || sw === undefined) continue;   // still loading or no data
-    const alert = buildStopAlert(originWeather, sw, stop.name);
+    if (sw == null || sw === undefined) continue;
+    const alert = buildStopAlert(originWeather, sw, stop.name, t);
     if (alert) stopAlerts.push(alert);
   }
 
@@ -167,18 +171,20 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
         <WeatherCell
           w={originWeather}
           label={longDistance ? originPlace.name : undefined}
+          t={t}
         />
         {hasDestWeather && destWeather && (
           <>
             <span className="text-sky-300 text-xs flex-none">›</span>
             <WeatherCell
               w={destWeather as WeatherData}
-              label={destPlace?.name ?? '目的地'}
+              label={destPlace?.name ?? t('weather.destination')}
+              t={t}
             />
           </>
         )}
         <p className="ml-auto text-[10px] text-sky-600 text-right leading-snug max-w-[110px]">
-          {clothingAdvice(originWeather.tempMax, originWeather.weatherCode)}
+          {clothingAdvice(originWeather.tempMax, originWeather.weatherCode, t)}
         </p>
       </div>
 
