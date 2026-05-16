@@ -5,11 +5,14 @@ import type { WeatherData } from '@/lib/weather';
 import { useWeatherMap, type WeatherMapItem } from '@/hooks/useWeather';
 import { useT } from '@/hooks/useT';
 import { useLangStore } from '@/store/useLangStore';
+import { ACTIVITY_META } from '@/lib/constants';
 import {
-  computeDayStats, buildRouteSummary, tripGearAdvice,
+  computeDayStats, buildRouteSummary, tripGearAdvice, buildDayMapUrl,
 } from '@/components/TripOverview';
 
 const W = 1242;
+// Map height for each day card: 600:250 ratio keeps the overview image manageable
+const MAP_H = Math.round(W * 250 / 600);
 
 interface Props {
   trip: Trip;
@@ -18,6 +21,14 @@ interface Props {
 
 function fmt(currency: string, amount: number): string {
   return `${currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function durLabel(min: number): string {
+  if (min <= 0) return '';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 0 && m > 0) return `${h}h${m}m`;
+  return h > 0 ? `${h}h` : `${m}m`;
 }
 
 export function OverviewShareCard({ trip, qrDataUrl }: Props) {
@@ -73,14 +84,11 @@ export function OverviewShareCard({ trip, qrDataUrl }: Props) {
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}
-        {/* Dark overlay — 40% → 65% from top to bottom */}
         <div style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.65) 100%)',
         }} />
-        {/* Content */}
         <div style={{ position: 'relative', padding: '44px 60px 36px', color: '#fff' }}>
-          {/* Branding row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logoyt.jpeg" alt="" style={{ width: 34, height: 34, borderRadius: 10, objectFit: 'cover' }} />
@@ -91,9 +99,7 @@ export function OverviewShareCard({ trip, qrDataUrl }: Props) {
           </div>
           <h1 style={{ fontSize: 40, fontWeight: 800, margin: 0, lineHeight: 1.2 }}>{trip.name}</h1>
           {trip.baseLocation && (
-            <p style={{ fontSize: 15, opacity: 0.8, margin: '8px 0 0' }}>
-              📍 {trip.baseLocation.name}
-            </p>
+            <p style={{ fontSize: 15, opacity: 0.8, margin: '8px 0 0' }}>📍 {trip.baseLocation.name}</p>
           )}
         </div>
       </div>
@@ -151,101 +157,156 @@ export function OverviewShareCard({ trip, qrDataUrl }: Props) {
         </div>
       )}
 
-      {/* ── Day cards ── */}
-      <div style={{ padding: '20px 40px 36px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* ── Day cards — expanded: map + timeline + accommodation ── */}
+      <div style={{ padding: '20px 40px 36px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {trip.days.map((day, i) => {
-          const st      = allStats[i];
-          const summary = buildRouteSummary(day);
-          const w       = weatherMap[day.id];
+          const st       = allStats[i];
+          const summary  = buildRouteSummary(day);
+          const mapUrl   = buildDayMapUrl(day);
+          const w        = weatherMap[day.id];
           const dateLabel = day.date
             ? new Date(day.date + 'T00:00:00').toLocaleDateString(lang, { month: 'short', day: 'numeric' })
             : null;
-          const topPlaces = st.places.slice(0, 3);
+
+          // All primary activities with a resolved place (excluding TRANSPORT for timeline)
+          const placeActs = day.activities.filter(
+            (a) => !a.isBackup && a.place?.name && a.type !== 'TRANSPORT',
+          );
+
+          // Last accommodation of the day
+          const accommodation = day.activities
+            .filter((a) => !a.isBackup && a.type === 'ACCOMMODATION' && a.place?.name)
+            .at(-1)?.place?.name ?? null;
 
           return (
             <div key={day.id} style={{
-              borderRadius: 14, border: '1px solid #f0f0f0',
+              borderRadius: 16, border: '1px solid #e5e7eb',
               overflow: 'hidden', backgroundColor: '#fff',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
             }}>
-              {/* Header row */}
+              {/* ── Card header ── */}
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 20px', backgroundColor: '#f9fafb', borderBottom: '1px solid #f0f0f0',
+                padding: '16px 24px', backgroundColor: '#f9fafb',
+                borderBottom: '1px solid #f0f0f0',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{day.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: '#111827' }}>{day.label}</span>
                   {dateLabel && <span style={{ fontSize: 13, color: '#9ca3af' }}>{dateLabel}</span>}
-                  {w && <span style={{ fontSize: 13, color: '#6b7280' }}>{w.emoji} {w.tempMax}°/{w.tempMin}°</span>}
+                  {w && <span style={{ fontSize: 14, color: '#6b7280' }}>{w.emoji} {w.tempMax}°/{w.tempMin}°</span>}
                 </div>
-                {st.totalCost > 0 && (
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#3D5568', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt(tripCurrency, st.totalCost)}
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  {st.drivingKm >= 10 && (
+                    <span style={{ fontSize: 13, color: '#9ca3af' }}>
+                      🚗 {st.drivingKm.toFixed(0)} km
+                    </span>
+                  )}
+                  {st.totalCost > 0 && (
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#3D5568' }}>
+                      💰 {fmt(tripCurrency, st.totalCost)}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Content */}
-              <div style={{ padding: '14px 20px' }}>
-                {/* Route */}
-                {(summary.origin || summary.end) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {summary.origin && (
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#47BB8E' }}>{summary.origin}</span>
-                    )}
-                    {summary.origin && (summary.waypoints.length > 0 || summary.end) && (
-                      <span style={{ fontSize: 12, color: '#d1d5db' }}>→</span>
-                    )}
-                    {summary.waypoints.length > 0 && (
-                      <span style={{ fontSize: 13, color: '#6b7280' }}>{summary.waypoints.join(' · ')}</span>
-                    )}
-                    {summary.waypoints.length > 0 && summary.end && (
-                      <span style={{ fontSize: 12, color: '#d1d5db' }}>→</span>
-                    )}
-                    {summary.end && (
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{summary.end}</span>
-                    )}
-                  </div>
-                )}
+              {/* ── Route summary ── */}
+              {(summary.origin || summary.end) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px 0', flexWrap: 'wrap' }}>
+                  {summary.origin && (
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#47BB8E' }}>{summary.origin}</span>
+                  )}
+                  {summary.origin && (summary.waypoints.length > 0 || summary.end) && (
+                    <span style={{ fontSize: 12, color: '#d1d5db' }}>→</span>
+                  )}
+                  {summary.waypoints.length > 0 && (
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>{summary.waypoints.join(' · ')}</span>
+                  )}
+                  {summary.waypoints.length > 0 && summary.end && (
+                    <span style={{ fontSize: 12, color: '#d1d5db' }}>→</span>
+                  )}
+                  {summary.end && (
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{summary.end}</span>
+                  )}
+                </div>
+              )}
 
-                {/* Place chips */}
-                {topPlaces.length > 0 && (
-                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                    {topPlaces.map((name, j) => (
-                      <span key={j} style={{
-                        fontSize: 11, color: '#6b7280', backgroundColor: '#f3f4f6',
-                        borderRadius: 20, padding: '3px 11px',
+              {/* ── Static satellite route map ── */}
+              {mapUrl && (
+                <div style={{ margin: '12px 0 0', width: '100%', height: MAP_H, overflow: 'hidden' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={mapUrl}
+                    alt={`${day.label} route`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+              )}
+
+              {/* ── Place timeline ── */}
+              {placeActs.length > 0 && (
+                <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {placeActs.map((act, idx) => {
+                    const meta   = ACTIVITY_META[act.type];
+                    const dur    = durLabel(act.duration);
+                    const isAccom = act.type === 'ACCOMMODATION';
+                    const isLast  = idx === placeActs.length - 1;
+                    return (
+                      <div key={act.id} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 14,
+                        paddingTop: idx === 0 ? 0 : 10,
+                        paddingBottom: isLast ? 0 : 10,
+                        borderBottom: isLast ? 'none' : '1px solid #f3f4f6',
                       }}>
-                        {name}
-                      </span>
-                    ))}
-                    {st.places.length > 3 && (
-                      <span style={{ fontSize: 11, color: '#9ca3af', padding: '3px 0' }}>
-                        +{st.places.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
+                        {/* Time */}
+                        <span style={{
+                          fontSize: 12, color: '#9ca3af', minWidth: 38,
+                          fontVariantNumeric: 'tabular-nums', paddingTop: 2,
+                        }}>
+                          {act.startTime}
+                        </span>
+                        {/* Icon */}
+                        <span style={{ fontSize: 16, lineHeight: 1, paddingTop: 1 }}>{meta.icon}</span>
+                        {/* Name + address */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 14, fontWeight: isAccom ? 700 : 600,
+                            color: isAccom ? '#1f2937' : '#374151',
+                            lineHeight: 1.3,
+                          }}>
+                            {act.place!.name}
+                          </div>
+                          {act.place?.editorialSummary && (
+                            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, lineHeight: 1.4 }}>
+                              {act.place.editorialSummary}
+                            </div>
+                          )}
+                        </div>
+                        {/* Duration */}
+                        {dur && (
+                          <span style={{ fontSize: 12, color: '#9ca3af', paddingTop: 2, whiteSpace: 'nowrap' }}>
+                            {dur}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                {/* Stats */}
-                {(st.drivingKm >= 10 || st.transitGroups.length > 0) && (
-                  <div style={{
-                    display: 'flex', gap: 16, marginTop: 10, paddingTop: 10,
-                    borderTop: '1px solid #f3f4f6', flexWrap: 'wrap',
-                  }}>
-                    {st.drivingKm >= 10 && (
-                      <span style={{ fontSize: 12, color: '#9ca3af' }}>
-                        🚗 {st.drivingKm.toFixed(0)} km
-                        {st.fuelCost > 0 ? ` · ${fmt(tripCurrency, st.fuelCost)}` : ''}
-                      </span>
-                    )}
-                    {st.transitGroups.map(({ currency, amount }) => (
-                      <span key={currency} style={{ fontSize: 12, color: '#9ca3af' }}>
-                        🚌 {fmt(currency, amount)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* ── Accommodation highlight (if not already shown inline as ACCOMMODATION type) ── */}
+              {accommodation && !placeActs.some((a) => a.type === 'ACCOMMODATION') && (
+                <div style={{
+                  margin: '0 16px 16px',
+                  padding: '10px 16px',
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: 10,
+                  borderLeft: '3px solid #47BB8E',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  fontSize: 13, color: '#166534', fontWeight: 600,
+                }}>
+                  🏨 {accommodation}
+                </div>
+              )}
             </div>
           );
         })}

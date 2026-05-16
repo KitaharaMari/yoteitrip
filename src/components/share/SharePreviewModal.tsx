@@ -78,7 +78,7 @@ export function SharePreviewModal({ mode, trip, day, onClose }: Props) {
     });
   }, [mode, trip]);
 
-  // Once QR is ready, settle 1800ms (weather + map images), then capture
+  // Settle before capture: overview loads one map per day so needs more time
   useEffect(() => {
     if (!qrReady || capturedRef.current) return;
     const timer = setTimeout(async () => {
@@ -90,7 +90,7 @@ export function SharePreviewModal({ mode, trip, day, onClose }: Props) {
       } catch {
         setFailed(true);
       }
-    }, 1800);
+    }, mode === 'overview' ? 3000 : 1800);
     return () => clearTimeout(timer);
   }, [qrReady]);
 
