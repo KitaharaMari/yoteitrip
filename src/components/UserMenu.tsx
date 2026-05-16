@@ -5,6 +5,7 @@ import { getAuth, signOut } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useLangStore } from '@/store/useLangStore';
+import { useT } from '@/hooks/useT';
 import { getFirebaseApp } from '@/lib/firebase';
 import { LANGS } from '@/lib/i18n';
 
@@ -12,20 +13,45 @@ interface Props {
   onOpenAuth: () => void;
 }
 
-export function UserMenu({ onOpenAuth }: Props) {
-  const user             = useAuthStore((s) => s.user);
-  const { lang, setLang } = useLangStore();
-  const [open, setOpen]  = useState(false);
-  const menuRef          = useRef<HTMLDivElement>(null);
+// Width of the wider dropdown (w-52 = 208px) used to clamp the position
+const DROPDOWN_W = 208;
 
+export function UserMenu({ onOpenAuth }: Props) {
+  const user               = useAuthStore((s) => s.user);
+  const { lang, setLang }  = useLangStore();
+  const t                  = useT();
+  const [open, setOpen]    = useState(false);
+  // Fixed screen-space position calculated when the menu opens
+  const [dropPos, setDropPos] = useState<{ top: number; right: number }>({ top: 56, right: 16 });
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef    = useRef<HTMLDivElement>(null);
+
+  // Close on click-outside (checks both trigger and menu)
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  const openMenu = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      // Align dropdown's right edge with trigger's right edge; clamp within viewport.
+      const rawRight   = window.innerWidth - rect.right;
+      const safeRight  = Math.max(8, Math.min(rawRight, window.innerWidth - DROPDOWN_W - 8));
+      setDropPos({ top: rect.bottom + 6, right: safeRight });
+    }
+    setOpen(true);
+  };
+
+  const toggleMenu = () => { if (open) setOpen(false); else openMenu(); };
 
   const handleSignOut = async () => {
     await signOut(getAuth(getFirebaseApp()));
@@ -34,10 +60,28 @@ export function UserMenu({ onOpenAuth }: Props) {
 
   const currentLangLabel = LANGS.find((l) => l.code === lang)?.label ?? lang;
 
-  // ── Language section (shared by both logged-in and not-logged-in dropdowns) ──
+  // Shared dropdown animation props
+  const motionProps = {
+    initial:    { opacity: 0, scale: 0.93, y: -6 },
+    animate:    { opacity: 1, scale: 1,    y: 0   },
+    exit:       { opacity: 0, scale: 0.93, y: -6  },
+    transition: { duration: 0.14 },
+  };
+
+  // Shared dropdown style (fixed so it's never clipped by any ancestor overflow)
+  const dropStyle: React.CSSProperties = {
+    position: 'fixed',
+    top:      dropPos.top,
+    right:    dropPos.right,
+    zIndex:   200,
+  };
+
+  // ── Language section ────────────────────────────────────────────────────────
   const LangSection = () => (
     <div className="py-1 border-t border-gray-50">
-      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-gray-300">Language</p>
+      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-gray-300">
+        {t('user.language')}
+      </p>
       {LANGS.map((l) => (
         <button
           key={l.code}
@@ -48,60 +92,65 @@ export function UserMenu({ onOpenAuth }: Props) {
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          {l.label}
-          {lang === l.code && <span className="text-[#47BB8E] text-xs">✓</span>}
+          <span className="flex items-center gap-2.5">
+            <span className="text-base leading-none">{l.flag}</span>
+            <span>{l.label}</span>
+          </span>
+          {lang === l.code && <span className="text-[#47BB8E] text-xs ml-2">✓</span>}
         </button>
       ))}
     </div>
   );
 
-  // ── Not logged in ─────────────────────────────────────────────────────────────
+  // ── Not logged in ─────────────────────────────────────────────────────────
   if (!user) {
     return (
-      <div className="relative" ref={menuRef}>
+      <>
         <button
-          onClick={() => setOpen((v) => !v)}
+          ref={triggerRef}
+          onClick={toggleMenu}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-medium text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors"
         >
           <span>☁️</span>
-          <span>登录</span>
+          <span>{t('user.signIn')}</span>
           <span className="text-gray-300 text-[10px] ml-0.5">{currentLangLabel}</span>
         </button>
 
         <AnimatePresence>
           {open && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: -4 }}
-              transition={{ duration: 0.12 }}
-              className="absolute right-0 top-10 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+              ref={menuRef}
+              style={{ ...dropStyle, width: 176 /* w-44 */ }}
+              {...motionProps}
+              className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
             >
               <div className="py-1">
                 <button
                   onClick={() => { onOpenAuth(); setOpen(false); }}
                   className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <span>☁️</span> 登录 / 注册
+                  <span>☁️</span>
+                  <span>{t('user.signInRegister')}</span>
                 </button>
               </div>
               <LangSection />
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </>
     );
   }
 
-  // ── Logged in ────────────────────────────────────────────────────────────────
+  // ── Logged in ─────────────────────────────────────────────────────────────
   const initials = user.displayName
     ? user.displayName.slice(0, 2).toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() ?? '?';
 
   return (
-    <div className="relative" ref={menuRef}>
+    <>
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={triggerRef}
+        onClick={toggleMenu}
         className="w-8 h-8 rounded-full overflow-hidden flex-none ring-2 ring-white shadow-sm"
         title={user.displayName ?? user.email ?? ''}
       >
@@ -118,22 +167,20 @@ export function UserMenu({ onOpenAuth }: Props) {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: -4 }}
-            transition={{ duration: 0.12 }}
-            className="absolute right-0 top-10 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+            ref={menuRef}
+            style={{ ...dropStyle, width: DROPDOWN_W }}
+            {...motionProps}
+            className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
           >
             {/* User info */}
             <div className="px-4 py-3 border-b border-gray-50">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user.displayName ?? '用户'}
+                {user.displayName ?? t('user.guest')}
               </p>
               <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
-              <p className="text-[10px] text-emerald-500 mt-0.5">☁️ 云同步已启用</p>
+              <p className="text-[10px] text-emerald-500 mt-0.5">{t('user.cloudSyncOn')}</p>
             </div>
 
-            {/* Language */}
             <LangSection />
 
             {/* Sign out */}
@@ -142,12 +189,12 @@ export function UserMenu({ onOpenAuth }: Props) {
                 onClick={handleSignOut}
                 className="w-full px-4 py-2.5 text-left text-sm text-red-500 hover:bg-red-50 transition-colors"
               >
-                退出登录
+                {t('user.signOut')}
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

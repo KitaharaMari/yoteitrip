@@ -26,7 +26,9 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Justin\\\\triptool\" -Recurse -Directory -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object { $_.FullName })",
       "Bash(xargs grep -l \"^export.*type.*Trip\\\\|^export.*interface.*Trip\")",
       "Bash(xargs grep -l \"getState\\\\|setState\\\\|subscribe\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(npx firebase *)",
+      "Bash(npx next *)"
     ]
   }
 }
