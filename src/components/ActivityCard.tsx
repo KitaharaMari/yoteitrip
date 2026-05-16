@@ -258,6 +258,24 @@ export function ActivityCard({
         </div>
       )}
 
+      {/* ── Hotel booking button (ACCOMMODATION only) ── */}
+      {activity.type === 'ACCOMMODATION' && activity.place?.name && (
+        <div className="flex gap-2.5 px-3 pb-2.5 -mt-0.5">
+          <div className="w-10 flex-none" />
+          <div className="w-5 flex-none" />
+          <a
+            href={`https://search.hotellook.com/?marker=529580&q=${encodeURIComponent(activity.place.name)}&lang=en`}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[#47BB8E] text-[10px] font-semibold text-[#47BB8E] hover:bg-[#47BB8E]/10 active:scale-[0.97] transition-all select-none"
+          >
+            🏨 {t('card.bookHotel')}
+            <span className="opacity-50 text-[9px]">↗</span>
+          </a>
+        </div>
+      )}
+
       {/* ── Plan B toggle ── */}
       {showFork && (
         <button

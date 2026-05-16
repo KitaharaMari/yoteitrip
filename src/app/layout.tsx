@@ -4,6 +4,7 @@ import './globals.css';
 import { StoreHydration } from '@/components/StoreHydration';
 import { MapProvider } from '@/components/MapProvider';
 import { AuthProvider } from '@/components/AuthProvider';
+import { TravelpayoutsScript } from '@/components/TravelpayoutsScript';
 
 const nunito = Nunito({
   variable: '--font-nunito',
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" className={`${nunito.variable} h-full antialiased`}>
       <body className="min-h-full bg-gray-50">
+        <TravelpayoutsScript />
         <StoreHydration>
           <AuthProvider>
             <MapProvider>{children}</MapProvider>
