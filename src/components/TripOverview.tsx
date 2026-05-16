@@ -192,13 +192,14 @@ function WeatherGearCard({ days, weatherMap }: {
 }
 
 // ── Collapsible Day Card ──────────────────────────────────────────────────────
-function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
+function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle, mapAlwaysVisible }: {
   day: Day;
   stats: DayStats;
   tripCurrency: string;
   weather: WeatherData | null;
   isExpanded: boolean;
   onToggle: () => void;
+  mapAlwaysVisible: boolean;
 }) {
   const t            = useT();
   const lang         = useLangStore((s) => s.lang);
@@ -209,8 +210,13 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
     ? new Date(day.date + 'T00:00:00').toLocaleDateString(lang, { month: 'short', day: 'numeric' })
     : null;
 
+  // Last accommodation of the day (shown in collapsed state)
+  const accommodation = day.activities
+    .filter((a) => !a.isBackup && a.type === 'ACCOMMODATION' && a.place?.name)
+    .at(-1)?.place?.name ?? null;
+
   const totalCostStr = stats.totalCost > 0 ? fmt(tripCurrency, stats.totalCost) : null;
-  const hasFooter    = stats.drivingKm >= 10 || stats.transitGroups.length > 0;
+  const hasBottom    = totalCostStr || accommodation || stats.transitGroups.length > 0;
 
   return (
     <div
@@ -221,7 +227,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
       {/* ── Collapsed header (always visible) ── */}
       <div className="px-4 pt-3 pb-3">
 
-        {/* Row 1: Day + date + weather + cost + chevron */}
+        {/* Row 1: Day · date · weather · [spacer] · 🚗 km · ▼ */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-gray-900 flex-none">{day.label}</span>
           {dateLabel && (
@@ -233,9 +239,10 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
             </span>
           )}
           <span className="flex-1" />
-          {totalCostStr && (
-            <span className="text-xs font-semibold tabular-nums flex-none" style={{ color: '#3D5568' }}>
-              {totalCostStr}
+          {/* Driving km — top-right */}
+          {stats.drivingKm >= 10 && (
+            <span className="text-[10px] text-gray-400 tabular-nums flex-none">
+              🚗 {stats.drivingKm.toFixed(0)} km
             </span>
           )}
           <span
@@ -276,23 +283,47 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
           </div>
         )}
 
-        {/* Row 3: Stats (km + transit) — compact, only if relevant */}
-        {hasFooter && (
-          <div className="flex items-center gap-2.5 mt-1.5">
-            {stats.drivingKm >= 10 && (
-              <span className="text-[10px] text-gray-400 tabular-nums">
-                🚗 {stats.drivingKm.toFixed(0)} km
-                {stats.fuelCost > 0 && ` · ${fmt(tripCurrency, stats.fuelCost)}`}
+        {/* Row 3: Bottom strip — 💰 budget (left) · 🏨 accommodation (right) */}
+        {hasBottom && (
+          <div className="flex items-center gap-2 mt-1.5">
+            {/* Budget — bottom-left with wallet icon */}
+            {totalCostStr && (
+              <span className="text-[10px] font-semibold tabular-nums flex-none" style={{ color: '#3D5568' }}>
+                💰 {totalCostStr}
               </span>
             )}
             {stats.transitGroups.map(({ currency, amount }) => (
-              <span key={currency} className="text-[10px] text-gray-400 tabular-nums">
+              <span key={currency} className="text-[10px] text-gray-400 tabular-nums flex-none">
                 🚌 {fmt(currency, amount)}
               </span>
             ))}
+            <span className="flex-1" />
+            {/* Accommodation — bottom-right, always visible */}
+            {accommodation && (
+              <span className="text-[10px] text-gray-500 truncate max-w-[9rem] flex-none text-right leading-tight">
+                🏨 {accommodation}
+              </span>
+            )}
           </div>
         )}
       </div>
+
+      {/* ── Compact route map (global map mode, card NOT expanded) ── */}
+      {mapUrl && mapAlwaysVisible && !isExpanded && (
+        <div
+          className="relative w-full border-t border-gray-50 bg-gray-50 overflow-hidden"
+          style={{ aspectRatio: '640/200' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mapUrl}
+            alt={`${day.label} ${t('overview.routeMap')}`}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
 
       {/* ── Expanded content (accordion) ── */}
       <AnimatePresence initial={false}>
@@ -306,7 +337,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
             style={{ overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Static Map — panoramic 640×260 ratio to match server image */}
+            {/* Full-size map inside accordion */}
             {mapUrl && (
               <div className="relative w-full border-t border-gray-50 bg-gray-50" style={{ aspectRatio: '640/260' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -319,16 +350,19 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
               </div>
             )}
 
-            {/* Place list */}
+            {/* Place list with clickable Google Maps links */}
             {placeActs.length > 0 && (
               <div className="px-4 pt-3 pb-4 border-t border-gray-50 flex flex-col gap-3">
                 {placeActs.map((act) => {
-                  const meta = ACTIVITY_META[act.type];
-                  const durH = Math.floor(act.duration / 60);
-                  const durM = act.duration % 60;
+                  const meta   = ACTIVITY_META[act.type];
+                  const durH   = Math.floor(act.duration / 60);
+                  const durM   = act.duration % 60;
                   const durStr = act.duration > 0
                     ? (durH > 0 ? `${durH}h${durM > 0 ? durM + 'm' : ''}` : `${durM}m`)
                     : '';
+                  // Prefer stored Google Maps URL, else build a search URL
+                  const mapsHref = act.place?.googleMapsUrl ??
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.place!.name)}&query_place_id=${encodeURIComponent(act.place!.placeId)}`;
                   return (
                     <div key={act.id} className="flex items-start gap-3">
                       <span className="text-[10px] font-mono text-gray-400 tabular-nums w-10 flex-none pt-0.5">
@@ -336,9 +370,16 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle }: {
                       </span>
                       <span className="text-base leading-none flex-none">{meta.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800 font-medium leading-snug truncate">
+                        {/* Clickable place name → Google Maps */}
+                        <a
+                          href={mapsHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm text-gray-800 font-medium leading-snug truncate block hover:text-blue-600 active:opacity-50 transition-colors hover:underline underline-offset-2"
+                        >
                           {act.place!.name}
-                        </p>
+                        </a>
                         {act.place?.address && (
                           <p className="text-[10px] text-gray-400 truncate mt-0.5">{act.place.address}</p>
                         )}
@@ -366,7 +407,8 @@ export function TripOverview({ trip }: { trip: Trip }) {
   const tripCurrency = trip.currency ?? 'CAD';
   const allStats     = trip.days.map((d) => computeDayStats(d, tripCurrency));
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId]       = useState<string | null>(null);
+  const [allMapsExpanded, setAllMapsExpanded] = useState(false);
 
   // Summary totals
   const totalDrivingKm = allStats.reduce((s, st) => s + st.drivingKm, 0);
@@ -416,6 +458,21 @@ export function TripOverview({ trip }: { trip: Trip }) {
         ))}
       </div>
 
+      {/* ── Global map toggle ── */}
+      <div className="mx-4 mt-2 flex justify-center">
+        <button
+          onClick={() => setAllMapsExpanded((v) => !v)}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-[11px] font-medium transition-all active:scale-95 ${
+            allMapsExpanded
+              ? 'bg-gray-900 text-white shadow-sm'
+              : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-400'
+          }`}
+        >
+          <span>🗺️</span>
+          {allMapsExpanded ? t('overview.hideAllMaps') : t('overview.showAllMaps')}
+        </button>
+      </div>
+
       {/* ── Budget summary ── */}
       {hasBudget && (
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm">
@@ -455,6 +512,7 @@ export function TripOverview({ trip }: { trip: Trip }) {
             weather={weatherMap[day.id] ?? null}
             isExpanded={expandedId === day.id}
             onToggle={() => handleToggle(day.id)}
+            mapAlwaysVisible={allMapsExpanded}
           />
         ))}
       </div>
