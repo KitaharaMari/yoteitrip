@@ -61,6 +61,9 @@ function createActivity(type: ActivityType): Activity {
   if (type === 'TRANSPORT') {
     return { ...base, isManualTime: true };
   }
+  if (type === 'ACCOMMODATION') {
+    return { ...base, duration: 480 }; // overnight default (8h = the "Overnight" preset)
+  }
   return base;
 }
 

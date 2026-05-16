@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '@/hooks/useT';
 
-const PRESETS = [
+export const OVERNIGHT_MINUTES = 480;
+
+const BASE_PRESETS: { label: string; minutes: number }[] = [
   { label: '15m', minutes: 15  },
   { label: '30m', minutes: 30  },
   { label: '45m', minutes: 45  },
@@ -11,7 +14,6 @@ const PRESETS = [
   { label: '3h',  minutes: 180 },
   { label: '4h',  minutes: 240 },
   { label: '6h',  minutes: 360 },
-  { label: '过夜', minutes: 480 },
 ];
 
 function fmt(minutes: number): string {
@@ -28,9 +30,12 @@ interface Props {
 }
 
 export function DurationPicker({ value, onChange }: Props) {
+  const t      = useT();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Derive hours and remainder minutes from current value — no extra state needed
+  // Overnight entry uses the translated label
+  const PRESETS = [...BASE_PRESETS, { label: t('duration.overnight'), minutes: OVERNIGHT_MINUTES }];
+
   const h = Math.floor(value / 60);
   const m = value % 60;
 
@@ -39,25 +44,26 @@ export function DurationPicker({ value, onChange }: Props) {
     onChange(Math.max(5, newH * 60 + m));
   };
 
-  // Adjusts minutes in 5-minute steps, wrapping at 0 and 55
   const adjustM = (delta: number) => {
     const step = 5;
-    const newM = ((m + delta) % 60 + 60) % 60;   // wrap 0–55
+    const newM = ((m + delta) % 60 + 60) % 60;
     const hourCarry = delta > 0 ? (m + delta >= 60 ? 1 : 0) : (m + delta < 0 ? -1 : 0);
     const newH = Math.max(0, Math.min(23, h + hourCarry));
     const total = newH * 60 + newM;
-    // round to nearest step
     onChange(Math.max(step, total));
   };
+
+  // Show the matching preset label (e.g. "Overnight") if value is a preset, else formatted time
+  const displayLabel = PRESETS.find((p) => p.minutes === value)?.label ?? fmt(value);
 
   return (
     <div className="relative flex-none">
       <button
         onClick={() => setIsOpen((v) => !v)}
-        title="点击调整停留时长"
+        title={t('duration.adjust')}
         className="text-xs text-gray-400 hover:text-blue-500 tabular-nums transition-colors"
       >
-        {fmt(value)}
+        {displayLabel}
       </button>
 
       {isOpen && (
@@ -88,7 +94,7 @@ export function DurationPicker({ value, onChange }: Props) {
             {/* ── Custom spinner ── */}
             <div className="border-t border-gray-100 mt-2 pt-2">
               <p className="text-[9px] text-gray-400 text-center uppercase tracking-widest mb-2">
-                自定义
+                {t('duration.custom')}
               </p>
               <div className="flex items-center justify-center gap-1.5">
                 {/* Hours */}
