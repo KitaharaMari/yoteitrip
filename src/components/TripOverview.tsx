@@ -312,7 +312,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle, mapA
       {mapUrl && mapAlwaysVisible && !isExpanded && (
         <div
           className="relative w-full border-t border-gray-50 bg-gray-50 overflow-hidden"
-          style={{ aspectRatio: '640/200' }}
+          style={{ aspectRatio: '600/220' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -339,7 +339,7 @@ function DayCard({ day, stats, tripCurrency, weather, isExpanded, onToggle, mapA
           >
             {/* Full-size map inside accordion */}
             {mapUrl && (
-              <div className="relative w-full border-t border-gray-50 bg-gray-50" style={{ aspectRatio: '640/260' }}>
+              <div className="relative w-full border-t border-gray-50 bg-gray-50" style={{ aspectRatio: '600/300' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={mapUrl}

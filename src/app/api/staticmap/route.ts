@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Referer headers — meaning domain restrictions on the client key are bypassed.
 // This server-side proxy keeps the API key completely hidden from the browser.
 
-const MAP_SIZE  = '640x260';   // Panoramic 2.46:1 — better for long driving routes
+const MAP_SIZE  = '600x300';   // 2:1 ratio — balanced for both horizontal and vertical routes
 const MAP_SCALE = '2';         // Retina / HDPI — fixes blurriness
 
 // Validate a bare lat,lng coordinate string
@@ -73,8 +73,8 @@ function rdp(pts: [number, number][], eps: number): [number, number][] {
 /**
  * Decode → simplify (RDP) → re-encode so the polyline has at most maxPts vertices.
  * Adaptive tolerance: doubles until point count is under the limit.
- * maxPts=60 keeps each encoded segment ≤ ~300 chars — well within URL limits
- * even for a day with 8 segments.
+ * maxPts=100 keeps route detail while limiting each encoded segment to ~500 chars;
+ * the URL safety net at 7800 chars handles extreme cases with many segments.
  */
 function simplifyPoly(enc: string, maxPts = 60): string {
   const raw = decodePoly(enc);
@@ -151,8 +151,8 @@ export async function GET(req: NextRequest) {
   // ── Encoded polyline paths ─────────────────────────────────────────────────
   const rawPolylines = sp.getAll('p');
   for (const poly of rawPolylines) {
-    // Simplify to ≤60 points — prevents URL overflow even for 781km+ routes
-    const simplified = simplifyPoly(poly, 60);
+    // Simplify to ≤100 points — less aggressive than 60, still safe for long routes
+    const simplified = simplifyPoly(poly, 100);
     parts.push(`path=color:0x4285F4ff|weight:5|enc:${safePolyEncode(simplified)}`);
   }
 

@@ -297,7 +297,7 @@ export function OriginConnector({ originPlace, originTime, firstActivity, dayId 
       {showMap && hasPlaces && originPlace.lat != null && firstActivity.place?.lat != null && (
         <div
           className="mx-4 mt-1.5 mb-0.5 rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
-          style={{ aspectRatio: '640/260' }}
+          style={{ aspectRatio: '600/300' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

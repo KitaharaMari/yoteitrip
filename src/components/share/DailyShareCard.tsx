@@ -52,7 +52,7 @@ export function DailyShareCard({ trip, day }: Props) {
       })
     : null;
 
-  const mapHeight = Math.round(W * 260 / 640);
+  const mapHeight = Math.round(W * 300 / 600);  // matches API 600x300 ratio
 
   return (
     <div style={{
