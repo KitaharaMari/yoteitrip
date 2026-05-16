@@ -77,8 +77,11 @@ export function TripView() {
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2500);
     } catch {
+      // Keep error state visible longer so the user knows to retry.
+      // Do NOT update lastManualSave on failure — the AuthProvider uses this
+      // timestamp to detect unsaved local work and avoid overwriting it.
       setSaveState('error');
-      setTimeout(() => setSaveState('idle'), 3000);
+      setTimeout(() => setSaveState('idle'), 6000);
     }
   };
 
