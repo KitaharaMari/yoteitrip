@@ -40,6 +40,7 @@ export interface PlaceDetails {
   photoUrl?: string;             // first cover photo URL (getUrl() result)
   openingHours?: PlaceOpeningHours;
   rating?: number;               // Google Places star rating (1–5)
+  userRatingsTotal?: number;     // Total number of user reviews
   googleMapsUrl?: string;        // Canonical Google Maps place page URL (from Places API `url` field)
 }
 

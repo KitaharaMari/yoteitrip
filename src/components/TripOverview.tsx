@@ -10,7 +10,7 @@ import { useWeatherMap, type WeatherMapItem } from '@/hooks/useWeather';
 import { useLangStore } from '@/store/useLangStore';
 import { ACTIVITY_META } from '@/lib/constants';
 
-// ── Keep these exports — used by ExportModal ──────────────────────────────────
+// ── Exports used by ExportModal and share cards ──────────────────────────────
 const DEFAULT_CONSUMPTION = 8.0;
 
 function defaultFuelPrice(currency: string): number {
@@ -61,7 +61,7 @@ export function computeDayStats(day: Day, tripCurrency: string): DayStats {
 }
 
 // ── Static Maps URL for a full day (hybrid satellite + blue route) ────────────
-function buildDayMapUrl(day: Day): string | null {
+export function buildDayMapUrl(day: Day): string | null {
   const primary = day.activities.filter((a) => !a.isBackup);
   const markers: string[] = [];
   const polylines: string[] = [];
@@ -85,7 +85,7 @@ function buildDayMapUrl(day: Day): string | null {
 }
 
 // ── Collapsed route summary ───────────────────────────────────────────────────
-function buildRouteSummary(day: Day): {
+export function buildRouteSummary(day: Day): {
   origin: string | null;
   waypoints: string[];
   end: string | null;
@@ -120,7 +120,7 @@ function buildRouteSummary(day: Day): {
 // ── Trip-wide gear advice (fully i18n) ───────────────────────────────────────
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
-function tripGearAdvice(days: Day[], weatherMap: Record<string, WeatherData | null>, t: TFunc): string {
+export function tripGearAdvice(days: Day[], weatherMap: Record<string, WeatherData | null>, t: TFunc): string {
   const weathers = days.map((d) => weatherMap[d.id]).filter((w): w is WeatherData => w != null);
   if (weathers.length === 0) return '';
 

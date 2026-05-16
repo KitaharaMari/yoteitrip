@@ -933,6 +933,7 @@ export function TripDashboard() {
     let bestIdx = -1, bestDist = Infinity;
     trips.forEach((trip, i) => {
       if (trip.id === excludeId) return;
+      if (trip.pinnedAt) return;           // pinned cards are not valid drop targets
       const el = cardRefsMap.current.get(trip.id);
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -973,6 +974,12 @@ export function TripDashboard() {
 
   const onCardPointerMove = useCallback((e: React.PointerEvent, id: string, idx: number) => {
     if (!pressRef.current || pressRef.current.id !== id) return;
+    // Pinned trips are immovable — cancel the press but don't start a drag
+    if (useTripStore.getState().trips.find((t) => t.id === id)?.pinnedAt) {
+      if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+      pressRef.current = null;
+      return;
+    }
     const dist = Math.hypot(e.clientX - pressRef.current.x, e.clientY - pressRef.current.y);
     if (dist > 10) {
       if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
@@ -1103,14 +1110,17 @@ export function TripDashboard() {
                           onClick={(e) => { e.stopPropagation(); pinTrip(trip.id, !trip.pinnedAt); setCtx(null); }}
                           className="flex items-center gap-1 px-3 py-2 bg-white/90 text-gray-800 rounded-xl text-[11px] font-semibold shadow-sm active:scale-95 transition-all"
                         >
-                          {trip.pinnedAt ? '× 取消置顶' : '📌 置顶'}
+                          {trip.pinnedAt ? `× ${t('dashboard.unpin')}` : `📌 ${t('dashboard.pin')}`}
                         </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setCtx(null); startDragMode(trip.id, i, 0, 0); }}
-                          className="flex items-center gap-1 px-3 py-2 bg-white/90 text-gray-600 rounded-xl text-[11px] font-medium shadow-sm active:scale-95 transition-all"
-                        >
-                          ⇅ 拖动
-                        </button>
+                        {/* Drag button only shown for unpinned trips — must unpin first */}
+                        {!trip.pinnedAt && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setCtx(null); startDragMode(trip.id, i, 0, 0); }}
+                            className="flex items-center gap-1 px-3 py-2 bg-white/90 text-gray-600 rounded-xl text-[11px] font-medium shadow-sm active:scale-95 transition-all"
+                          >
+                            ⇅ {t('dashboard.drag')}
+                          </button>
+                        )}
                       </div>
                     )}
                     {/* Pinned indicator */}

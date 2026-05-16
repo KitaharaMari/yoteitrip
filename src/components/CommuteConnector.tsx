@@ -8,6 +8,7 @@ import { useTimezone } from '@/hooks/useTimezone';
 import { useMapsLoaded } from '@/components/MapProvider';
 import { buildDepartureDate } from '@/lib/departureTime';
 import { haversineKm } from '@/lib/haversine';
+import { useT } from '@/hooks/useT';
 
 interface Props {
   prevActivity: Activity;
@@ -81,6 +82,7 @@ function mergeSteps(steps: TransitStep[]): TransitStep[] {
 
 function StepList({ steps, fareText }: { steps: TransitStep[]; fareText?: string }) {
   const merged = mergeSteps(steps);
+  const t      = useT();
 
   return (
     <div className="ml-[52px] mr-0 my-1 bg-gray-50 rounded-2xl px-3 py-2.5 flex flex-col gap-2 text-xs">
@@ -108,7 +110,7 @@ function StepList({ steps, fareText }: { steps: TransitStep[]; fareText?: string
 
       {fareText && (
         <div className="flex justify-between text-gray-400 pt-1.5 border-t border-gray-200">
-          <span>票价</span>
+          <span>{t('commute.fare')}</span>
           <span className="font-medium">{fareText}</span>
         </div>
       )}
@@ -119,6 +121,7 @@ function StepList({ steps, fareText }: { steps: TransitStep[]; fareText?: string
 export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest = false }: Props) {
   const updateActivity = useTripStore((s) => s.updateActivity);
   const mapsLoaded     = useMapsLoaded();
+  const t              = useT();
   // Initialize from the day's stored travel mode; sync whenever it changes.
   const dayTravelMode  = useTripStore(
     (s) => (s.trip.days.find((d) => d.id === dayId)?.travelMode ?? 'TRANSIT') as TravelMode,
@@ -242,8 +245,8 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
       const mm   = Math.round((abs - hh) * 60);
       return mm > 0 ? `UTC${sign}${hh}:${String(mm).padStart(2, '0')}` : `UTC${sign}${hh}`;
     };
-    const dir = diff > 0 ? `快 ${diff}h` : `慢 ${Math.abs(diff)}h`;
-    return `${fmt(prevTz.offsetHours)} → ${fmt(nextTz.offsetHours)}，目的地${dir}，注意营业时间`;
+    const dir = diff > 0 ? `${diff}h ahead` : `${Math.abs(diff)}h behind`;
+    return `${fmt(prevTz.offsetHours)} → ${fmt(nextTz.offsetHours)} · Destination is ${dir} · Mind business hours`;
   })();
   const hasSteps  = (route?.steps?.length ?? 0) > 0;
   const displayMode = route?.usedMode ?? mode;
@@ -279,7 +282,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
               <button
                 key={m}
                 onClick={() => { setMode(m); setExpanded(false); }}
-                title={m === 'TRANSIT' ? (transitNoData ? '无公交数据 · 已显示驾车' : '公交') : '驾车'}
+                title={m === 'TRANSIT' ? (transitNoData ? t('commute.noDataSwitch') : t('commute.transit')) : t('commute.driving')}
                 className={`text-[11px] px-0.5 rounded transition-colors leading-none ${
                   mode === m ? 'opacity-100' : 'opacity-30 hover:opacity-60'
                 }`}
@@ -290,7 +293,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
             {showWalking && (
               <button
                 onClick={() => { setMode('WALKING'); setExpanded(false); }}
-                title={`步行约 ${walkingRoute!.totalText}`}
+                title={t('commute.walkAbout', { time: walkingRoute!.totalText })}
                 className={`flex items-center gap-0.5 text-[10px] px-0.5 rounded transition-colors leading-none ${
                   mode === 'WALKING' ? 'opacity-100' : 'opacity-30 hover:opacity-60'
                 }`}
@@ -311,7 +314,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
           if (!hasRoute) {
             return (
               <span className="flex-1 text-[10px] text-gray-300">
-                {hasPlaces ? '计算中…' : '— —'}
+                {hasPlaces ? t('commute.calculating') : '— —'}
               </span>
             );
           }
@@ -331,7 +334,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
               href={route!.mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="在 Google Maps 中打开路线"
+              title={t('commute.openInMaps')}
               className="flex-1 min-w-0 flex items-center gap-1 hover:text-blue-500 transition-colors"
             >
               {stationInfo && (
@@ -360,7 +363,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
             className={`text-[11px] flex-none transition-colors leading-none ${
               showMap ? 'opacity-90' : 'opacity-25 hover:opacity-60'
             }`}
-            title={showMap ? '收起路线图' : '查看路线图'}
+            title={showMap ? t('commute.collapseMap') : t('commute.viewMap')}
           >
             🗺️
           </button>
@@ -371,7 +374,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
           <button
             onClick={() => setExpanded(v => !v)}
             className="text-[10px] text-gray-300 hover:text-gray-600 transition-colors flex-none"
-            aria-label={expanded ? '收起路线' : '展开路线'}
+            aria-label={expanded ? t('commute.collapseRoute') : t('commute.expandRoute')}
           >
             {expanded ? '▲' : '▼'}
           </button>
@@ -384,7 +387,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
             target="_blank"
             rel="noopener noreferrer"
             className="flex-none text-[12px] text-gray-400 hover:text-blue-500 transition-colors px-0.5"
-            title="在 Google Maps 中打开路线"
+            title={t('commute.openInMaps')}
           >
             ↗
           </a>
@@ -404,7 +407,7 @@ export function CommuteConnector({ prevActivity, nextActivity, dayId, isLatest =
               nextActivity.place.lng!,
               route?.overviewPolyline ?? nextActivity.commutePolyline,
             )}
-            alt="路线预览"
+            alt={t('commute.mapAlt')}
             className="w-full h-full object-cover"
             loading="lazy"
           />

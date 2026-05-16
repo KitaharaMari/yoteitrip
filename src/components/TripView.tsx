@@ -12,6 +12,7 @@ import { ActivityList } from './ActivityList';
 import { TripOverview } from './TripOverview';
 import { ExportModal } from './ExportModal';
 import { WishlistDrawer } from './WishlistDrawer';
+import { SharePreviewModal, type ShareMode } from './share/SharePreviewModal';
 
 export function TripView() {
   const trip              = useTripStore((s) => s.trip);
@@ -27,6 +28,7 @@ export function TripView() {
   const [showExport, setShowExport]     = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
   const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [shareMode, setShareMode]       = useState<ShareMode | null>(null);
 
   const activeDay = trip.days.find((d) => d.id === activeDayId) ?? trip.days[0] ?? null;
 
@@ -122,9 +124,9 @@ export function TripView() {
                 onClick={handleManualSave}
                 disabled={saveState === 'saving'}
                 title={
-                  saveState === 'saved' ? '已保存到云端'
-                  : saveState === 'error' ? '保存失败，请检查网络'
-                  : '保存到云端'
+                  saveState === 'saved' ? t('trip.savedToCloud')
+                  : saveState === 'error' ? t('trip.saveFailed')
+                  : t('trip.saveToCloud')
                 }
                 className={`w-9 h-9 rounded-full border flex items-center justify-center text-sm transition-all ${
                   saveState === 'saved'  ? 'bg-green-50 border-green-200 text-green-500'
@@ -136,9 +138,17 @@ export function TripView() {
                 {saveState === 'saved' ? '✓' : saveState === 'saving' ? '…' : saveState === 'error' ? '!' : '💾'}
               </button>
             )}
+            {/* Context-aware share button: overview image or daily image */}
+            <button
+              onClick={() => setShareMode(showOverview ? 'overview' : 'daily')}
+              title={showOverview ? t('share.shareOverview') : t('share.shareDay')}
+              className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
+            >
+              📷
+            </button>
             <button
               onClick={() => setShowExport(true)}
-              title="数据 & 分享"
+              title={t('trip.dataShare')}
               className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
             >
               📤
@@ -210,6 +220,15 @@ export function TripView() {
       </div>
 
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
+
+      {shareMode && (
+        <SharePreviewModal
+          mode={shareMode}
+          trip={trip}
+          day={shareMode === 'daily' ? (activeDay ?? undefined) : undefined}
+          onClose={() => setShareMode(null)}
+        />
+      )}
 
       <WishlistDrawer
         isOpen={showWishlist}

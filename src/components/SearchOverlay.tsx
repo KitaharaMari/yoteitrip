@@ -60,7 +60,7 @@ export function SearchOverlay({ onSelect, onClose, searchAnchor }: Props) {
       fields: [
         'place_id', 'name', 'formatted_address', 'geometry', 'vicinity',
         'editorial_summary', 'photos',
-        'opening_hours', 'rating', 'url',
+        'opening_hours', 'rating', 'user_ratings_total', 'url',
       ],
     });
     acRef.current = ac;
@@ -93,16 +93,17 @@ export function SearchOverlay({ onSelect, onClose, searchAnchor }: Props) {
             }
           : undefined;
         return {
-          placeId:          p.place_id ?? '',
-          name:             p.name ?? '',
-          address:          p.formatted_address ?? (p as google.maps.places.PlaceResult).vicinity ?? '',
-          lat:              p.geometry?.location?.lat(),
-          lng:              p.geometry?.location?.lng(),
-          editorialSummary: p.editorial_summary?.overview,
-          photoUrl:         p.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }),
+          placeId:           p.place_id ?? '',
+          name:              p.name ?? '',
+          address:           p.formatted_address ?? (p as google.maps.places.PlaceResult).vicinity ?? '',
+          lat:               p.geometry?.location?.lat(),
+          lng:               p.geometry?.location?.lng(),
+          editorialSummary:  p.editorial_summary?.overview,
+          photoUrl:          p.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }),
           openingHours,
-          rating:           p.rating,
-          googleMapsUrl:    p.url,
+          rating:            p.rating,
+          userRatingsTotal:  (p as google.maps.places.PlaceResult).user_ratings_total,
+          googleMapsUrl:     p.url,
           ...overrides,
         };
       };
@@ -115,7 +116,7 @@ export function SearchOverlay({ onSelect, onClose, searchAnchor }: Props) {
       svc.getDetails(
         {
           placeId: place.place_id,
-          fields: ['editorial_summary', 'url', 'rating', 'photos'],
+          fields: ['editorial_summary', 'url', 'rating', 'user_ratings_total', 'photos'],
         },
         (details, status) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && details) {
@@ -123,9 +124,10 @@ export function SearchOverlay({ onSelect, onClose, searchAnchor }: Props) {
             onSelectRef.current({
               ...base,
               editorialSummary: enriched.editorial_summary?.overview ?? base.editorialSummary,
-              photoUrl: details.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) ?? base.photoUrl,
-              rating:         details.rating          ?? base.rating,
-              googleMapsUrl:  details.url             ?? base.googleMapsUrl,
+              photoUrl:         details.photos?.[0]?.getUrl({ maxWidth: 800, maxHeight: 600 }) ?? base.photoUrl,
+              rating:           details.rating              ?? base.rating,
+              userRatingsTotal: details.user_ratings_total  ?? base.userRatingsTotal,
+              googleMapsUrl:    details.url                 ?? base.googleMapsUrl,
             });
           } else {
             // getDetails failed — use autocomplete data as-is

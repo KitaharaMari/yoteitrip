@@ -5,7 +5,9 @@ import { haversineKm } from '@/lib/haversine';
 import { useWeather, useWeatherMap, type WeatherMapItem } from '@/hooks/useWeather';
 import { useT } from '@/hooks/useT';
 import {
-  clothingAdvice, wmoDescT, BAD_CODES, RAIN_CODES, SNOW_CODES,
+  clothingAdvice, wmoDescT,
+  BAD_CODES, RAIN_CODES, SNOW_CODES,
+  TEMP_HOT, TEMP_WARM, TEMP_MILD, UNIFORM_SPREAD,
   type WeatherData,
 } from '@/lib/weather';
 
@@ -18,6 +20,8 @@ interface Props {
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
 // ── Long-distance destination alerts ─────────────────────────────────────────
+// Rules use BOTH relative diff AND absolute temperature to avoid nonsense like
+// "watch the heat" at 14°C.
 function buildDestAlerts(origin: WeatherData, dest: WeatherData, destName: string, t: TFunc): string[] {
   const alerts: string[] = [];
   const originBad = BAD_CODES.has(origin.weatherCode);
@@ -25,32 +29,56 @@ function buildDestAlerts(origin: WeatherData, dest: WeatherData, destName: strin
   const destSnow  = SNOW_CODES.has(dest.weatherCode);
   const diff      = dest.tempMax - origin.tempMax;
 
+  // Precipitation (absolute condition — always relevant)
   if (!originBad && destRain)
     alerts.push(t('weather.alertDestRain', { dest: destName, desc: `${dest.emoji} ${wmoDescT(dest.weatherCode, t)}` }));
   if (!originBad && destSnow)
     alerts.push(t('weather.alertDestSnow', { dest: destName, desc: `${dest.emoji} ${wmoDescT(dest.weatherCode, t)}` }));
-  if (diff <= -8)
+
+  // Cold alert: relative AND absolute (stop must actually be cold, not just "cooler")
+  if (diff <= -8 && dest.tempMax < TEMP_MILD)
     alerts.push(t('weather.alertDestColder', { dest: destName, n: Math.abs(Math.round(diff)) }));
-  if (diff >= 8)
+
+  // Warm/hot alerts: relative AND absolute
+  // Only "watch the heat" when destination is genuinely hot (≥ TEMP_HOT)
+  if (diff >= 8 && dest.tempMax >= TEMP_HOT)
     alerts.push(t('weather.alertDestWarmer', { dest: destName, n: Math.round(diff) }));
+  // Neutral "lighter clothes" nudge for warm-but-not-hot destinations
+  else if (diff >= 8 && dest.tempMax >= TEMP_WARM)
+    alerts.push(t('weather.alertDestMilder', { dest: destName }));
+
   return alerts;
 }
 
-// ── Intermediate stop alert ────────────────────────────────────────────────────
+// ── Intermediate stop alert ───────────────────────────────────────────────────
+// Same dual-check: relative diff + absolute temperature guards.
 function buildStopAlert(origin: WeatherData, stop: WeatherData, stopName: string, t: TFunc): string | null {
   const originBad = BAD_CODES.has(origin.weatherCode);
   const stopRain  = RAIN_CODES.has(stop.weatherCode);
   const stopSnow  = SNOW_CODES.has(stop.weatherCode);
   const diff      = stop.tempMax - origin.tempMax;
 
+  // Precipitation (absolute condition)
   if (!originBad && stopSnow)
     return t('weather.alertStopSnow', { stop: stopName, desc: `${stop.emoji} ${wmoDescT(stop.weatherCode, t)}` });
   if (!originBad && stopRain)
     return t('weather.alertStopRain', { stop: stopName, desc: `${stop.emoji} ${wmoDescT(stop.weatherCode, t)}` });
-  if (diff <= -5)
+
+  // Cold: relative diff AND absolute cold (<TEMP_MILD = 15°C)
+  // Avoids "4°C colder" alerts when both stops are already mild
+  if (diff <= -5 && stop.tempMax < TEMP_MILD)
     return t('weather.alertStopColder', { stop: stopName, n: Math.abs(Math.round(diff)) });
-  if (diff >= 5)
+
+  // Hot: relative diff AND absolute hot (≥ TEMP_HOT = 25°C)
+  // Fixes: "watch the heat" will NEVER appear at 14°C
+  if (diff >= 5 && stop.tempMax >= TEMP_HOT)
     return t('weather.alertStopWarmer', { stop: stopName, n: Math.round(diff) });
+
+  // Warm (not hot): lighter clothes nudge — only when stop is warm enough to matter
+  if (diff >= 5 && stop.tempMax >= TEMP_WARM)
+    return t('weather.alertStopMilder', { stop: stopName });
+
+  // Below TEMP_WARM (20°C): even if relatively warmer, it's still cool — no alert
   return null;
 }
 
@@ -163,6 +191,27 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
     if (alert) stopAlerts.push(alert);
   }
 
+  // ── Uniform-spread aggregation ────────────────────────────────────────────
+  // If all readings within the day fall within UNIFORM_SPREAD°C of each other,
+  // suppress individual stop/dest alerts and use one consolidated clothing line.
+  const allReadings: WeatherData[] = [
+    originWeather,
+    hasDestWeather && destWeather ? (destWeather as WeatherData) : null,
+    ...stopItems.map(s => stopWeathers[s.key]).filter((w): w is WeatherData => !!w),
+  ].filter((w): w is WeatherData => w != null);
+
+  const tempSpread = allReadings.length > 1
+    ? Math.max(...allReadings.map(w => w.tempMax)) - Math.min(...allReadings.map(w => w.tempMax))
+    : 0;
+  const isUniform = tempSpread <= UNIFORM_SPREAD;
+
+  // Conservative: use coldest tempMax + worst weather code (rain/snow beats clear)
+  const adviceTempMax = isUniform && allReadings.length > 1
+    ? Math.min(...allReadings.map(w => w.tempMax))
+    : originWeather.tempMax;
+  const adviceCode = allReadings.find(w => BAD_CODES.has(w.weatherCode))?.weatherCode
+    ?? originWeather.weatherCode;
+
   return (
     <div className="mb-1.5 flex flex-col gap-1">
 
@@ -184,12 +233,12 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
           </>
         )}
         <p className="ml-auto text-[10px] text-sky-600 text-right leading-snug max-w-[110px]">
-          {clothingAdvice(originWeather.tempMax, originWeather.weatherCode, t)}
+          {clothingAdvice(adviceTempMax, adviceCode, t)}
         </p>
       </div>
 
-      {/* ── Long-distance alerts (amber) ── */}
-      {destAlerts.map((msg, i) => (
+      {/* ── Long-distance alerts (amber) — suppressed when all stops uniform ── */}
+      {!isUniform && destAlerts.map((msg, i) => (
         <div
           key={i}
           className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-1.5 text-[11px] text-amber-700"
@@ -199,8 +248,8 @@ export function DayWeatherBar({ date, originPlace, activities }: Props) {
         </div>
       ))}
 
-      {/* ── Intermediate stop alerts (sky blue) ── */}
-      {stopAlerts.map((msg, i) => (
+      {/* ── Intermediate stop alerts (sky blue) — suppressed when all stops uniform ── */}
+      {!isUniform && stopAlerts.map((msg, i) => (
         <div
           key={`stop-${i}`}
           className="px-3 py-2 rounded-xl bg-sky-50/80 border border-sky-100 flex items-start gap-1.5 text-[11px] text-sky-700"

@@ -43,6 +43,17 @@ export const RAIN_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,
 export const SNOW_CODES = new Set([71,73,75,77,85,86]);
 export const BAD_CODES  = new Set([...RAIN_CODES, ...SNOW_CODES]);
 
+// ── Shared temperature thresholds ─────────────────────────────────────────────
+// These drive both clothingAdvice and the alert logic in DayWeatherBar.
+// Changing a value here automatically propagates to all alert conditions.
+export const TEMP_HOT   = 25;   // ≥ this: "watch the heat" warnings apply
+export const TEMP_WARM  = 20;   // ≥ this: mild "lighter clothes" nudge
+export const TEMP_MILD  = 15;   // ≥ this: no cold-warning trigger
+export const TEMP_COOL  = 10;   // ≥ this: cool but not cold
+export const TEMP_COLD  =  5;   // < this: heavy jacket territory
+// Threshold spread within which all stops are considered "uniform" (no individual alerts)
+export const UNIFORM_SPREAD = 3; // °C
+
 // WMO code → i18n key mapping
 const WMO_KEY: Record<number, string> = {
   0: 'wmo.sunny',    1: 'wmo.mostlyClear',  2: 'wmo.partlyCloudy', 3: 'wmo.overcast',

@@ -194,6 +194,8 @@ export const useTripStore = create<TripState>()(
       reorderTrips: (fromIdx, toIdx) =>
         set((s) => {
           const trips = [...s.trips];
+          // Pinned trips are immovable — abort if either slot is pinned
+          if (trips[fromIdx]?.pinnedAt || trips[toIdx]?.pinnedAt) return s;
           const [moved] = trips.splice(fromIdx, 1);
           trips.splice(toIdx, 0, moved);
           // Treat drag-reorder as a manual-save event so the new order wins
