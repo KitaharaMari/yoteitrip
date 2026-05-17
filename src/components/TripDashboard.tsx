@@ -920,6 +920,7 @@ export function TripDashboard() {
   const [showAuthModal, setShowAuthModal]       = useState(false);
   const [showSettings, setShowSettings]         = useState(false);
   const [showOnboarding, setShowOnboarding]     = useState(false);
+  const [fabOpen, setFabOpen]                   = useState(false);
 
   // ── Long-press drag & pin state ────────────────────────────────────────────
   const [contextId, setContextId]   = useState<string | null>(null);
@@ -1018,7 +1019,7 @@ export function TripDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full max-w-[480px] mx-auto flex flex-col px-4">
+      <div className="w-full max-w-[480px] mx-auto flex flex-col px-4 pb-28">
 
         {/* ── Header ── */}
         <header className="pt-12 pb-6">
@@ -1035,9 +1036,11 @@ export function TripDashboard() {
               <span style={{ color: '#47BB8E' }}>trip</span>
             </span>
           </div>
-          <div className="flex items-end justify-between">
-            <h1 className="text-2xl font-bold" style={{ color: '#3D5568' }}>{t('dashboard.title')}</h1>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold flex-1 min-w-0 truncate" style={{ color: '#3D5568' }}>
+              {t('dashboard.title')}
+            </h1>
+            <div className="flex items-center gap-1.5 flex-none">
               <button
                 onClick={() => setShowSettings(true)}
                 title={t('settings.title')}
@@ -1048,17 +1051,10 @@ export function TripDashboard() {
               <UserMenu onOpenAuth={() => setShowAuthModal(true)} />
               <button
                 onClick={() => setShowWishlist(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-2xl text-sm text-gray-600 hover:border-gray-400 transition-colors shadow-sm"
+                title={t('dashboard.wishlist')}
+                className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base hover:border-gray-400 transition-colors shadow-sm"
               >
-                <span className="text-base leading-none">⭐</span>
-                <span className="font-medium">{t('dashboard.wishlist')}</span>
-              </button>
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-2xl text-sm font-medium hover:bg-gray-700 active:scale-95 transition-all shadow-sm"
-              >
-                <span className="text-base leading-none">+</span>
-                {t('dashboard.newTrip')}
+                ⭐
               </button>
             </div>
           </div>
@@ -1070,7 +1066,7 @@ export function TripDashboard() {
             <span className="text-5xl">🗺️</span>
             <p className="text-sm text-gray-400">{t('dashboard.noTrips')}</p>
             <button
-              onClick={() => setShowNewModal(true)}
+              onClick={() => setFabOpen(true)}
               className="px-5 py-2.5 bg-gray-900 text-white rounded-2xl text-sm font-medium hover:bg-gray-700 transition-colors"
             >
               {t('dashboard.startPlanning')}
@@ -1147,21 +1143,74 @@ export function TripDashboard() {
                   </div>
                 ))}
               </AnimatePresence>
-
-              {/* "+ New" ghost card */}
-              <motion.button
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onClick={() => setShowNewModal(true)}
-                className="rounded-3xl border-2 border-dashed border-gray-200 h-[7.5rem] flex flex-col items-center justify-center gap-1.5 text-gray-300 hover:border-gray-400 hover:text-gray-400 active:scale-95 transition-all"
-              >
-                <span className="text-2xl leading-none">+</span>
-                <span className="text-[11px] font-medium">{t('dashboard.ghostCard')}</span>
-              </motion.button>
             </motion.div>
           </>
         )}
+      </div>
+
+      {/* ── FAB ── */}
+      {fabOpen && (
+        <div className="fixed inset-0 z-30" onClick={() => setFabOpen(false)} />
+      )}
+      <div className="fixed bottom-6 right-4 z-40 flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {fabOpen && (
+            <>
+              {/* Action: New Trip */}
+              <motion.div
+                key="fab-trip"
+                initial={{ opacity: 0, y: 10, scale: 0.88 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.88 }}
+                transition={{ duration: 0.15, delay: 0.05 }}
+                className="flex items-center gap-2"
+              >
+                <span className="bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-md border border-gray-100 whitespace-nowrap">
+                  {t('dashboard.newTrip')}
+                </span>
+                <button
+                  onClick={() => { setShowNewModal(true); setFabOpen(false); }}
+                  className="w-12 h-12 rounded-full bg-gray-900 shadow-lg flex items-center justify-center text-xl active:scale-90 transition-transform"
+                >
+                  ✈️
+                </button>
+              </motion.div>
+              {/* Action: Wishlist */}
+              <motion.div
+                key="fab-wish"
+                initial={{ opacity: 0, y: 10, scale: 0.88 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.88 }}
+                transition={{ duration: 0.15 }}
+                className="flex items-center gap-2"
+              >
+                <span className="bg-white text-gray-700 text-xs font-medium px-3 py-1.5 rounded-full shadow-md border border-gray-100 whitespace-nowrap">
+                  {t('dashboard.wishlist')}
+                </span>
+                <button
+                  onClick={() => { setShowWishlist(true); setFabOpen(false); }}
+                  className="w-12 h-12 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center text-xl active:scale-90 transition-transform"
+                >
+                  ⭐
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+        {/* Main FAB button */}
+        <button
+          onClick={() => setFabOpen((v) => !v)}
+          className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white active:scale-95 transition-transform"
+          style={{ backgroundColor: '#47BB8E' }}
+        >
+          <motion.span
+            animate={{ rotate: fabOpen ? 45 : 0 }}
+            transition={{ duration: 0.18, ease: 'easeInOut' }}
+            className="text-2xl leading-none select-none"
+          >
+            +
+          </motion.span>
+        </button>
       </div>
 
       {/* ── Modals ── */}
