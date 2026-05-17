@@ -13,6 +13,7 @@ import { TripOverview } from './TripOverview';
 import { ExportModal } from './ExportModal';
 import { WishlistDrawer } from './WishlistDrawer';
 import { SharePreviewModal, type ShareMode } from './share/SharePreviewModal';
+import { SettingsModal } from './SettingsModal';
 
 export function TripView() {
   const trip              = useTripStore((s) => s.trip);
@@ -27,6 +28,7 @@ export function TripView() {
   const [showOverview, setShowOverview] = useState(false);
   const [showExport, setShowExport]     = useState(false);
   const [showWishlist, setShowWishlist] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [saveState, setSaveState]       = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [shareMode, setShareMode]       = useState<ShareMode | null>(null);
 
@@ -122,6 +124,13 @@ export function TripView() {
             </select>
           </div>
           <div className="flex items-center gap-1 pt-1">
+            <button
+              onClick={() => setShowSettings(true)}
+              title={t('settings.title')}
+              className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors"
+            >
+              ⚙
+            </button>
             {user && (
               <button
                 onClick={handleManualSave}
@@ -223,6 +232,7 @@ export function TripView() {
       </div>
 
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
       {shareMode && (
         <SharePreviewModal

@@ -4,10 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { getAuth, signOut } from 'firebase/auth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useLangStore } from '@/store/useLangStore';
 import { useT } from '@/hooks/useT';
 import { getFirebaseApp } from '@/lib/firebase';
-import { LANGS } from '@/lib/i18n';
 
 interface Props {
   onOpenAuth: () => void;
@@ -17,9 +15,8 @@ interface Props {
 const DROPDOWN_W = 208;
 
 export function UserMenu({ onOpenAuth }: Props) {
-  const user               = useAuthStore((s) => s.user);
-  const { lang, setLang }  = useLangStore();
-  const t                  = useT();
+  const user = useAuthStore((s) => s.user);
+  const t    = useT();
   const [open, setOpen]    = useState(false);
   // Fixed screen-space position calculated when the menu opens
   const [dropPos, setDropPos] = useState<{ top: number; right: number }>({ top: 56, right: 16 });
@@ -58,8 +55,6 @@ export function UserMenu({ onOpenAuth }: Props) {
     setOpen(false);
   };
 
-  const currentLangLabel = LANGS.find((l) => l.code === lang)?.label ?? lang;
-
   // Shared dropdown animation props
   const motionProps = {
     initial:    { opacity: 0, scale: 0.93, y: -6 },
@@ -76,32 +71,6 @@ export function UserMenu({ onOpenAuth }: Props) {
     zIndex:   200,
   };
 
-  // ── Language section ────────────────────────────────────────────────────────
-  const LangSection = () => (
-    <div className="py-1 border-t border-gray-50">
-      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-gray-300">
-        {t('user.language')}
-      </p>
-      {LANGS.map((l) => (
-        <button
-          key={l.code}
-          onClick={() => { setLang(l.code); setOpen(false); }}
-          className={`flex items-center justify-between w-full px-4 py-2 text-sm text-left transition-colors ${
-            lang === l.code
-              ? 'font-semibold text-gray-900 bg-gray-50'
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="text-base leading-none">{l.flag}</span>
-            <span>{l.label}</span>
-          </span>
-          {lang === l.code && <span className="text-[#47BB8E] text-xs ml-2">✓</span>}
-        </button>
-      ))}
-    </div>
-  );
-
   // ── Not logged in ─────────────────────────────────────────────────────────
   if (!user) {
     return (
@@ -113,7 +82,6 @@ export function UserMenu({ onOpenAuth }: Props) {
         >
           <span>☁️</span>
           <span>{t('user.signIn')}</span>
-          <span className="text-gray-300 text-[10px] ml-0.5">{currentLangLabel}</span>
         </button>
 
         <AnimatePresence>
@@ -133,7 +101,6 @@ export function UserMenu({ onOpenAuth }: Props) {
                   <span>{t('user.signInRegister')}</span>
                 </button>
               </div>
-              <LangSection />
             </motion.div>
           )}
         </AnimatePresence>
@@ -180,8 +147,6 @@ export function UserMenu({ onOpenAuth }: Props) {
               <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
               <p className="text-[10px] text-emerald-500 mt-0.5">{t('user.cloudSyncOn')}</p>
             </div>
-
-            <LangSection />
 
             {/* Sign out */}
             <div className="py-1 border-t border-gray-50">

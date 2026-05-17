@@ -9,6 +9,7 @@ import { useMapsLoaded } from './MapProvider';
 import { WishlistDrawer } from './WishlistDrawer';
 import { UserMenu } from './UserMenu';
 import { AuthModal } from './AuthModal';
+import { SettingsModal } from './SettingsModal';
 import type { BaseLocation, Trip } from '@/types';
 
 // ── Colour palette cycling by trip index ─────────────────────────────────────
@@ -917,6 +918,7 @@ export function TripDashboard() {
   const [coverPickerTrip, setCoverPickerTrip]   = useState<Trip | null>(null);
   const [showWishlist, setShowWishlist]         = useState(false);
   const [showAuthModal, setShowAuthModal]       = useState(false);
+  const [showSettings, setShowSettings]         = useState(false);
   const [showOnboarding, setShowOnboarding]     = useState(false);
 
   // ── Long-press drag & pin state ────────────────────────────────────────────
@@ -1036,6 +1038,13 @@ export function TripDashboard() {
           <div className="flex items-end justify-between">
             <h1 className="text-2xl font-bold" style={{ color: '#3D5568' }}>{t('dashboard.title')}</h1>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSettings(true)}
+                title={t('settings.title')}
+                className="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-base text-gray-500 hover:border-gray-400 transition-colors shadow-sm"
+              >
+                ⚙
+              </button>
               <UserMenu onOpenAuth={() => setShowAuthModal(true)} />
               <button
                 onClick={() => setShowWishlist(true)}
@@ -1166,6 +1175,7 @@ export function TripDashboard() {
           <AuthModal key="auth" onClose={() => setShowAuthModal(false)} />
         )}
       </AnimatePresence>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       <AnimatePresence>
         {showNewModal && (
           <NewTripModal key="new" onClose={() => setShowNewModal(false)} />
